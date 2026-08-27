@@ -61,7 +61,7 @@ repos:
     description: |
       * Use descriptive, referenceable TODOs. Examples:
         * `// TODO(nero.windstriker@helly25.com)`
-        * `# FIXME(https://github.com/helly25/bzl/issues/42)`
+        * `# FIXME(https://github.com/mboworks/bzl/issues/42)`
       * From the google style guide:
         Use FIXME/TODO comments for code that is temporary, a short-term solution.
         FIXME/TODOs should include the string `FIXME` or `TODO` in all caps, followed by a person's

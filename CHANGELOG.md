@@ -1,5 +1,8 @@
 # 0.5.1
 
+- Transfer the canonical repository from `helly25/bzl` to `mboworks/bzl` and
+  publish future releases under the new `mboworks_bzl` module name.
+
 # 0.5.0
 
 - [BC] Dropped legacy `WORKSPACE` support; the module is now bzlmod-only.

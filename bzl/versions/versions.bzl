@@ -14,7 +14,7 @@
 
 """A starlark implementation of versioning functions that mostly follow semver.
 
-SEE [README.md](https://github.com/helly25/bzl/blob/main/README.md).
+SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
 """
 
 def _maybe_int(value):

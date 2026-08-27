@@ -1,8 +1,8 @@
-# Helly25 bzl, a Bazel support library
+# MBO Works bzl, a Bazel support library
 
 This library provides [Bazel](http://bazel.build) [Starlark](https://bazel.build/rules/language) functionality meant to help in maintaining other libraries.
 
-[![Test](https://github.com/helly25/bzl/actions/workflows/main.yml/badge.svg)](https://github.com/helly25/bzl/actions/workflows/main.yml)
+[![Test](https://github.com/mboworks/bzl/actions/workflows/main.yml/badge.svg)](https://github.com/mboworks/bzl/actions/workflows/main.yml)
 
 The following libraries are implemented:
 
@@ -57,7 +57,7 @@ if _versions.lt(my_version, min_version):
 
 Provides:
 
-- `load("@helly25_bzl//bzl/versions:versions_bzl", _versions = "versions")`
+- `load("@mboworks_bzl//bzl/versions:versions_bzl", _versions = "versions")`
   - `versions` is a single import structure:
     - `parse`: Parses a version.
     - `ge`: Implements `L >= R`.
@@ -80,7 +80,7 @@ NOTE: These functions do not support Windows drive letter relative paths.
 
 Provides:
 
-- `load("@helly25_bzl//bzl/paths:paths_bzl", _paths = "paths")`
+- `load("@mboworks_bzl//bzl/paths:paths_bzl", _paths = "paths")`
   - `paths` is a single import structure:
     - `collapse`: Collapse '.' and '..' path segments for normalized Unix paths.
     - `collapse_windows`: Collapse '.' and '..' path segments for normalized Windows paths.
@@ -103,10 +103,10 @@ However future version may drop Windows support.
 
 ### For MODULE.bazel
 
-See [helly25/bzl/releases](https://github.com/helly25/bzl/releases) to replace the version number.
+See [mboworks/bzl releases](https://github.com/mboworks/bzl/releases) to replace the version number.
 
 ```starlark
-bazel_dep(name = "helly25_bzl", version = "0.0.0")
+bazel_dep(name = "mboworks_bzl", version = "0.0.0")
 ```
 
 ### Dependencies

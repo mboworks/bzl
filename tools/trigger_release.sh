@@ -22,7 +22,7 @@ function die() {
     exit 1
 }
 
-REPO="helly25/bzl"
+REPO="mboworks/bzl"
 
 # Release approval is performed by a dedicated GitHub App (permissions:
 # "Pull requests: Read & write" and "Metadata: Read-only", installed on this
