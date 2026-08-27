@@ -14,7 +14,7 @@
 
 """A starlark implementation of path manipulationfunctions.
 
-SEE [README.md](https://github.com/helly25/bzl/blob/main/README.md).
+SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
 """
 
 def _collapse(path, is_windows = False):

@@ -13,4 +13,4 @@ tasks:
     platform: ${{ platform }}
     bazel: ${{ bazel }}
     build_targets:
-      - "@helly25_bzl//bzl/..."
+      - "@mboworks_bzl//bzl/..."

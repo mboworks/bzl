@@ -1,4 +1,4 @@
-# Reusable one-click release for helly25 Bazel-module repos.
+# Reusable one-click release for MBO Works Bazel-module repos.
 #
 # Call it from a repo's own .github/workflows/trigger_release.yml:
 #
@@ -7,7 +7,7 @@
 #       permissions:
 #         contents: read
 #         pull-requests: write   # so github-actions[bot] can approve the bump PR
-#       uses: helly25/bzl/.github/workflows/trigger_release.yaml@main
+#       uses: mboworks/bzl/.github/workflows/trigger_release.yaml@main
 #       secrets: inherit
 #
 # It operates on the CALLER repo's `main` and releases whatever version is in
