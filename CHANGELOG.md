@@ -1,3 +1,5 @@
+# 0.5.2
+
 # 0.5.1
 
 - Transfer the canonical repository from `helly25/bzl` to `mboworks/bzl` and
