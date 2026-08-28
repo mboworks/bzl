@@ -16,7 +16,7 @@
 
 module(
     name = "mboworks_bzl",
-    version = "0.5.1",
+    version = "0.5.2",
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
