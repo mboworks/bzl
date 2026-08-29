@@ -13,7 +13,7 @@ jobs:
       contents: write       # Required to create the release and upload bzl-*.tar.gz
     with:
       release_files: bzl-*.tar.gz
-      prerelease: true
+      prerelease: false
 
   # Mirror the release to the Bazel Central Registry (replaces the retired
   # publish-to-bcr GitHub App). See .github/workflows/publish.yaml.
