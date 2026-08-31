@@ -1,4 +1,4 @@
-# Copyright 2025 M. Boerger and the MBO Works authors.
+# Copyright 2025 M. Boerger, the MBO Works authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
