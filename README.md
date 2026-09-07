@@ -17,11 +17,12 @@ Comparators correctly respect major, minor and patch components, as well as
 Semver compliant 'pre-release' and 'build' components. The pre-release and build
 components are split at ".". Comparing pre-release parts works for alphabetical
 prefixes and numeric suffixes, so 'alpha', 'beta' and 'rc' as well as numbered
-version of those (e.g. 'alpha1' or rc-1') are supported. For pre-releases and
-build pieces a single '-' in front of the numeric parts is dropped (e.g. 'rc-1'
-becomes 'rc' + '1' while 'alpha--2' becomes 'alpha-' + '2').
+versions of those (e.g. 'alpha1' or 'rc-1') are supported. For pre-release
+pieces a single '-' in front of the numeric parts is dropped (e.g. 'rc-1'
+becomes 'rc' + '1' while 'alpha--2' becomes 'alpha-' + '2'). Build components
+are split only at dots; their prefixes and numeric suffixes are not separated.
 
-The full functionality is exposed as a singele struct containing all functions.
+The full functionality is exposed as a single struct containing all functions.
 
 The version parameters support:
 
@@ -35,9 +36,9 @@ The version parameters support:
 - unlike Semver, the function allows any number of numeric version components.
 
 Note: Most functions support a `skip_build` parameter. If `True`, then any
-present build component will be dropped. Conclusively the parameter is `True`
-by default for parsing and `False` for comparisons since Semver dictates that
-that the build component must be ignored for precedence (see
+present build component will be dropped. The parameter defaults to `False`
+for parsing and `True` for comparisons since Semver dictates that
+the build component must be ignored for precedence (see
 [Semver-10](https://semver.org/#spec-item-10)).
 
 The functionality has exhaustive tests. If something still works wrong please,
@@ -46,6 +47,8 @@ file a bug report or propose a fix.
 Example:
 
 ```starlark
+load("@mboworks_bzl//bzl/versions:versions.bzl", _versions = "versions")
+
 my_version = "25.33.42"
 min_version = (10, 11, 12)
 if _versions.lt(my_version, min_version):
@@ -57,7 +60,7 @@ if _versions.lt(my_version, min_version):
 
 Provides:
 
-- `load("@mboworks_bzl//bzl/versions:versions_bzl", _versions = "versions")`
+- `load("@mboworks_bzl//bzl/versions:versions.bzl", _versions = "versions")`
   - `versions` is a single import structure:
     - `parse`: Parses a version.
     - `ge`: Implements `L >= R`.
@@ -66,7 +69,7 @@ Provides:
     - `lt`: Implements `L < R`.
     - `eq`: Implements `L == R`.
     - `ne`: Implements `L != R`.
-    - `cmp`: Implements `L <=> R` aka `(L < R) - (L > R)`.
+    - `cmp`: Returns -1 if `L < R`, 0 if `L == R`, and 1 if `L > R`.
     - `compare`: Implements `L OP R`.
     - `check_one_requirement`: Checks a version adheres to a single requirement.
     - `check_all_requirements`: Checks a version adheres to a requirements list.
@@ -80,7 +83,7 @@ NOTE: These functions do not support Windows drive letter relative paths.
 
 Provides:
 
-- `load("@mboworks_bzl//bzl/paths:paths_bzl", _paths = "paths")`
+- `load("@mboworks_bzl//bzl/paths:paths.bzl", _paths = "paths")`
   - `paths` is a single import structure:
     - `collapse`: Collapse '.' and '..' path segments for normalized Unix paths.
     - `collapse_windows`: Collapse '.' and '..' path segments for normalized Windows paths.
@@ -97,9 +100,9 @@ Provides:
 
 ## Installation
 
-The library is available as a Bazel module (bzlmod) and works on MacOS, Ubuntu
-and Windows with Bazel version 7.x and 8.x (Other systems are simply not tested).
-However future version may drop Windows support.
+The library is available as a Bazel module (bzlmod) and supports macOS, Ubuntu
+and Windows with Bazel versions 7.x, 8.x and 9.x (other systems are not tested).
+However, future versions may drop Windows support.
 
 ### For MODULE.bazel
 
