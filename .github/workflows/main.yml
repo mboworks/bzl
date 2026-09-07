@@ -63,7 +63,7 @@ jobs:
   # dependency fails or is cancelled, this job fails and names the offending
   # jobs in its log and in the run summary.
   done:
-    needs: [pre-commit, test]
+    needs: [release-site-tests, pre-commit, test]
     if: always()
     runs-on: ubuntu-latest
     steps:
