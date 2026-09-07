@@ -1,0 +1,10 @@
+{
+  "pages": {
+    "README.md": "index.html",
+    "CHANGELOG.md": "CHANGELOG.html",
+    "CONTRIBUTING.md": "CONTRIBUTING.html",
+    "CODE_OF_CONDUCT.md": "CODE_OF_CONDUCT.html",
+    "RULES.md": "RULES.html"
+  },
+  "links": []
+}
