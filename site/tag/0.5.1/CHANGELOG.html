@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CHANGELOG.md - bzl 0.5.1</title><style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 76rem; margin: auto; padding: 2rem; }
+a { color: light-dark(#075da8, #8cc8ff); }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #888; }
+pre { padding: 1rem; overflow: auto; background: light-dark(#f3f5f7, #20252b); }
+code { font-size: .9em; } img { max-width: 100%; }
+table { display: block; overflow: auto; border-collapse: collapse; }
+th, td { border: 1px solid #888; padding: .4rem .7rem; }
+blockquote { border-left: 4px solid #888; margin-left: 0; padding-left: 1rem; }
+</style><body><nav><a href="/bzl/site/tag/0.5.1/">Home</a><a href="/bzl/site/tag/0.5.1/documents.html">Documentation</a><a href="https://github.com/mboworks/bzl/releases/tag/0.5.1">Release &amp; downloads</a><a href="https://github.com/mboworks/bzl/tree/b9ba51c51fcc2b0a1b5ffd2882d7d1295e64cef1">Source</a></nav><p>bzl 0.5.1</p><main><h1 dir="auto" id="051">0.5.1</h1>
+<ul dir="auto">
+<li>Transfer the canonical repository from <code class="notranslate">helly25/bzl</code> to <code class="notranslate">mboworks/bzl</code> and<br>
+publish future releases under the new <code class="notranslate">mboworks_bzl</code> module name.</li>
+</ul>
+<h1 dir="auto" id="050">0.5.0</h1>
+<ul dir="auto">
+<li>[BC] Dropped legacy <code class="notranslate">WORKSPACE</code> support; the module is now bzlmod-only.</li>
+</ul>
+<h1 dir="auto" id="044">0.4.4</h1>
+<ul dir="auto">
+<li>Re-release of <code class="notranslate">0.4.3</code> with no functional changes (release/CI tooling only).</li>
+</ul>
+<h1 dir="auto" id="043">0.4.3</h1>
+<ul dir="auto">
+<li>Added <code class="notranslate">paths.ensure_trailing_slash</code> and <code class="notranslate">paths.ensure_trailing_slash_windows</code> to append a single trailing separator, handling roots and existing trailing separators. An optional <code class="notranslate">default_if_empty</code> controls the fallback for empty input (e.g. <code class="notranslate">"/"</code> to anchor at the platform root).</li>
+</ul>
+<h1 dir="auto" id="042">0.4.2</h1>
+<ul dir="auto">
+<li>Fix release naming and tagging scheme back to "1.2.3" style without 'v' prefix.</li>
+</ul>
+<h1 dir="auto" id="041">0.4.1</h1>
+<ul dir="auto">
+<li>Added explicit Windows and Bazel 9 support for the Bazel module releases.</li>
+</ul>
+<h1 dir="auto" id="040">0.4.0</h1>
+<ul dir="auto">
+<li>Implement paths library.</li>
+</ul>
+<h1 dir="auto" id="031">0.3.1</h1>
+<ul dir="auto">
+<li>Fixed some cases of comparisons that contain '-' or '+' against versions that are missing those parts.</li>
+</ul>
+<h1 dir="auto" id="030">0.3.0</h1>
+<ul dir="auto">
+<li>Added <code class="notranslate">skip_build</code> parameter to control whether comparisons adhere to Semver-10.</li>
+<li>[BC] Changed <code class="notranslate">version.parse</code> and <code class="notranslate">version.compare</code> to take parameter <code class="notranslate">error</code> as a keyword only parameter.</li>
+</ul>
+<h1 dir="auto" id="021">0.2.1</h1>
+<ul dir="auto">
+<li>Improved support for mixed type comparisons.</li>
+</ul>
+<h1 dir="auto" id="020">0.2.0</h1>
+<ul dir="auto">
+<li>Added support for parsing out 'pre_release' and 'build' components.</li>
+<li>Added <code class="notranslate">versions.compare</code>.</li>
+<li>Added 'pre_release' and 'build' support for comparisons.</li>
+<li>Added CI run for Windows (may be dropped at any future point).</li>
+</ul>
+<h1 dir="auto" id="012">0.1.2</h1>
+<ul dir="auto">
+<li>Fixed workspace file to work for transitive repos.</li>
+</ul>
+<h1 dir="auto" id="011">0.1.1</h1>
+<ul dir="auto">
+<li>Fixed some naming issues and remove mbo references.</li>
+</ul>
+<h1 dir="auto" id="010">0.1.0</h1>
+<p dir="auto">Initial version.</p></main><footer>Release snapshot · b9ba51c51fcc2b0a1b5ffd2882d7d1295e64cef1</footer></body></html>

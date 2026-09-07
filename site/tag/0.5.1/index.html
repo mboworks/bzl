@@ -1,0 +1,117 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>README.md - bzl 0.5.1</title><style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 76rem; margin: auto; padding: 2rem; }
+a { color: light-dark(#075da8, #8cc8ff); }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #888; }
+pre { padding: 1rem; overflow: auto; background: light-dark(#f3f5f7, #20252b); }
+code { font-size: .9em; } img { max-width: 100%; }
+table { display: block; overflow: auto; border-collapse: collapse; }
+th, td { border: 1px solid #888; padding: .4rem .7rem; }
+blockquote { border-left: 4px solid #888; margin-left: 0; padding-left: 1rem; }
+</style><body><nav><a href="/bzl/site/tag/0.5.1/">Home</a><a href="/bzl/site/tag/0.5.1/documents.html">Documentation</a><a href="https://github.com/mboworks/bzl/releases/tag/0.5.1">Release &amp; downloads</a><a href="https://github.com/mboworks/bzl/tree/b9ba51c51fcc2b0a1b5ffd2882d7d1295e64cef1">Source</a></nav><p>bzl 0.5.1</p><main><h1 dir="auto" id="mbo-works-bzl-a-bazel-support-library">MBO Works bzl, a Bazel support library</h1>
+<p dir="auto">This library provides <a href="http://bazel.build" rel="nofollow">Bazel</a> <a href="https://bazel.build/rules/language" rel="nofollow">Starlark</a> functionality meant to help in maintaining other libraries.</p>
+<p dir="auto"><a href="https://github.com/mboworks/bzl/actions/workflows/main.yml"><img src="assets/ce733292a922c08274cf5a2096f8fa4cf01023bfa51a36ef6beecaaef371a9d9.svg" alt="Test" style="max-width: 100%;"></a></p>
+<p dir="auto">The following libraries are implemented:</p>
+<ul dir="auto">
+<li><a href="#versions">Versions</a></li>
+<li><a href="#paths">Paths</a></li>
+</ul>
+<h2 dir="auto" id="versions">Versions</h2>
+<p dir="auto">Implements versioning functions that mostly follow <a href="https://semver.org/" rel="nofollow">Semver</a>.</p>
+<p dir="auto">Comparators correctly respect major, minor and patch components, as well as<br>
+Semver compliant 'pre-release' and 'build' components. The pre-release and build<br>
+components are split at ".". Comparing pre-release parts works for alphabetical<br>
+prefixes and numeric suffixes, so 'alpha', 'beta' and 'rc' as well as numbered<br>
+version of those (e.g. 'alpha1' or rc-1') are supported. For pre-releases and<br>
+build pieces a single '-' in front of the numeric parts is dropped (e.g. 'rc-1'<br>
+becomes 'rc' + '1' while 'alpha--2' becomes 'alpha-' + '2').</p>
+<p dir="auto">The full functionality is exposed as a singele struct containing all functions.</p>
+<p dir="auto">The version parameters support:</p>
+<ul dir="auto">
+<li>a string that can be parsed according to:<br>
+<code class="notranslate">major</code>['.' <code class="notranslate">minor</code> [ '.' <code class="notranslate">patch</code> [ '.' <code class="notranslate">digits</code>]*]] ['-' [^+]+] ['+' .*]</li>
+<li>a <code class="notranslate">list</code> or <code class="notranslate">tuple</code> where each component is a version part. If present, then:
+<ul dir="auto">
+<li>a pre-release component must be separated by a single "-" and split by ".".</li>
+<li>a build component must be separated by a single "+" and split by "."</li>
+</ul>
+</li>
+<li>a single <code class="notranslate">int</code> which will be the major version.</li>
+<li>anything else is an error and the functions will <code class="notranslate">fail</code>.</li>
+<li>unlike Semver, the function allows any number of numeric version components.</li>
+</ul>
+<p dir="auto">Note: Most functions support a <code class="notranslate">skip_build</code> parameter. If <code class="notranslate">True</code>, then any<br>
+present build component will be dropped. Conclusively the parameter is <code class="notranslate">True</code><br>
+by default for parsing and <code class="notranslate">False</code> for comparisons since Semver dictates that<br>
+that the build component must be ignored for precedence (see<br>
+<a href="https://semver.org/#spec-item-10" rel="nofollow">Semver-10</a>).</p>
+<p dir="auto">The functionality has exhaustive tests. If something still works wrong please,<br>
+file a bug report or propose a fix.</p>
+<p dir="auto">Example:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">my_version</span> <span class="pl-c1">=</span> <span class="pl-s">"25.33.42"</span>
+<span class="pl-s1">min_version</span> <span class="pl-c1">=</span> (<span class="pl-c1">10</span>, <span class="pl-c1">11</span>, <span class="pl-c1">12</span>)
+<span class="pl-k">if</span> <span class="pl-s1">_versions</span>.<span class="pl-c1">lt</span>(<span class="pl-s1">my_version</span>, <span class="pl-s1">min_version</span>):
+  <span class="pl-en">fail</span>(<span class="pl-s">"My version {my_version} is earlier than {min_version}."</span>.<span class="pl-c1">format</span>(
+    <span class="pl-s1">my_version</span> <span class="pl-c1">=</span> <span class="pl-s1">my_version</span>,
+    <span class="pl-s1">min_version</span> <span class="pl-c1">=</span> <span class="pl-s1">min_version</span>,
+  ))</pre></div>
+<p dir="auto">Provides:</p>
+<ul dir="auto">
+<li><code class="notranslate">load("@mboworks_bzl//bzl/versions:versions_bzl", _versions = "versions")</code>
+<ul dir="auto">
+<li><code class="notranslate">versions</code> is a single import structure:
+<ul dir="auto">
+<li><code class="notranslate">parse</code>: Parses a version.</li>
+<li><code class="notranslate">ge</code>: Implements <code class="notranslate">L &gt;= R</code>.</li>
+<li><code class="notranslate">gt</code>: Implements <code class="notranslate">L &gt; R</code>.</li>
+<li><code class="notranslate">le</code>: Implements <code class="notranslate">L &lt;= R</code>.</li>
+<li><code class="notranslate">lt</code>: Implements <code class="notranslate">L &lt; R</code>.</li>
+<li><code class="notranslate">eq</code>: Implements <code class="notranslate">L == R</code>.</li>
+<li><code class="notranslate">ne</code>: Implements <code class="notranslate">L != R</code>.</li>
+<li><code class="notranslate">cmp</code>: Implements <code class="notranslate">L &lt;=&gt; R</code> aka <code class="notranslate">(L &lt; R) - (L &gt; R)</code>.</li>
+<li><code class="notranslate">compare</code>: Implements <code class="notranslate">L OP R</code>.</li>
+<li><code class="notranslate">check_one_requirement</code>: Checks a version adheres to a single requirement.</li>
+<li><code class="notranslate">check_all_requirements</code>: Checks a version adheres to a requirements list.</li>
+<li><code class="notranslate">parse_requirements</code>: Parses a requirements specification.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 dir="auto" id="paths">Paths</h2>
+<p dir="auto">Implements file path manipulation functions.</p>
+<p dir="auto">NOTE: These functions do not support Windows drive letter relative paths.</p>
+<p dir="auto">Provides:</p>
+<ul dir="auto">
+<li><code class="notranslate">load("@mboworks_bzl//bzl/paths:paths_bzl", _paths = "paths")</code>
+<ul dir="auto">
+<li><code class="notranslate">paths</code> is a single import structure:
+<ul dir="auto">
+<li><code class="notranslate">collapse</code>: Collapse '.' and '..' path segments for normalized Unix paths.</li>
+<li><code class="notranslate">collapse_windows</code>: Collapse '.' and '..' path segments for normalized Windows paths.</li>
+<li><code class="notranslate">ensure_trailing_slash</code>: Ensure a Unix path ends with a single trailing slash.</li>
+<li><code class="notranslate">ensure_trailing_slash_windows</code>: Ensure a Windows path ends with a single trailing backslash.</li>
+<li><code class="notranslate">is_absolute</code>: Returns <code class="notranslate">True</code> if a Unix path is absolute.</li>
+<li><code class="notranslate">is_absolute_windows</code>: Returns <code class="notranslate">True</code> if a Windows path is absolute.</li>
+<li><code class="notranslate">join</code>: Join path elements and return as normalized Unix paths.</li>
+<li><code class="notranslate">join_windows</code>: Join path elements and return as normalized Windows paths.</li>
+<li><code class="notranslate">join_respect_absolute</code>: Join path elements (respecting absolute paths) and return as normalized Unix paths.</li>
+<li><code class="notranslate">join_respect_absolute_windows</code>: Join path elements (respecting absolute paths) and return as normalized Windows paths.</li>
+<li><code class="notranslate">normalize</code>: Normalize a Unix file path.</li>
+<li><code class="notranslate">normalize_windows</code>: Normalize a Windows file path.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 dir="auto" id="installation">Installation</h2>
+<p dir="auto">The library is available as a Bazel module (bzlmod) and works on MacOS, Ubuntu<br>
+and Windows with Bazel version 7.x and 8.x (Other systems are simply not tested).<br>
+However future version may drop Windows support.</p>
+<h3 dir="auto" id="for-modulebazel">For MODULE.bazel</h3>
+<p dir="auto">See <a href="https://github.com/mboworks/bzl/releases">mboworks/bzl releases</a> to replace the version number.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-en">bazel_dep</span>(<span class="pl-s1">name</span> <span class="pl-c1">=</span> <span class="pl-s">"mboworks_bzl"</span>, <span class="pl-s1">version</span> <span class="pl-c1">=</span> <span class="pl-s">"0.0.0"</span>)</pre></div>
+<h3 dir="auto" id="dependencies">Dependencies</h3>
+<ul dir="auto">
+<li><code class="notranslate">bazel_skylib</code>.</li>
+</ul></main><footer>Release snapshot · b9ba51c51fcc2b0a1b5ffd2882d7d1295e64cef1</footer></body></html>
