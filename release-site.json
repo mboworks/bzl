@@ -4,7 +4,8 @@
     "CHANGELOG.md": "CHANGELOG.html",
     "CONTRIBUTING.md": "CONTRIBUTING.html",
     "CODE_OF_CONDUCT.md": "CODE_OF_CONDUCT.html",
-    "RULES.md": "RULES.html"
+    "RULES.md": "RULES.html",
+    "docs/release-website.md": "docs/release-website.html"
   },
   "links": []
 }
