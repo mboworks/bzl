@@ -1,6 +1,6 @@
-# MBO Works bzl, a Bazel support library
+# MBO Works bzl, a Bazel support library <img src="docs/assets/mboworks-logo.png" alt="MBO Works" width="64" height="64" align="right">
 
-[Release website](https://mboworks.github.io/bzl/)
+[Release website](https://mboworks.github.io/bzl/) · [Infrastructure and publishing](docs/infrastructure.md)
 
 This library provides [Bazel](http://bazel.build) [Starlark](https://bazel.build/rules/language) functionality meant to help in maintaining other libraries.
 
