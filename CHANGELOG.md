@@ -1,5 +1,7 @@
 # 0.5.2
 
+- Fetch shallow publication snapshots and report complete site size with a 250 MB advisory budget.
+
 # 0.5.1
 
 - Transfer the canonical repository from `helly25/bzl` to `mboworks/bzl` and
