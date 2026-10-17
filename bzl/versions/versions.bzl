@@ -608,14 +608,10 @@ def _check_all_requirements(version, requirements, *, skip_build = True, mode = 
 def _parse_split_requirement(req, *, mode = "legacy"):
     parts = expression.comparison(req, _REQUIREMENT_OPERATORS)
     left = parts.left
-    if not left and any([req.startswith(name) for name in _NAMED_COMPONENTS]):
-        fail("Named version component requires ==, !=, <, <=, >, or >=.")
     op = parts.op
     value = parts.right
     fields = {}
-    if left in _NAMED_COMPONENTS:
-        fields["component"] = left
-    elif left:
+    if left:
         nodes = expression.parse(left)
         if len(nodes) == 1 and nodes[0].function in _NAMED_COMPONENTS and not nodes[0].args and not nodes[0].kwargs:
             fields["component"] = nodes[0].function

@@ -706,24 +706,24 @@ def _versions_named_components_test(ctx):
     env = unittest.begin(ctx)
     for mode in ["legacy", "semver"]:
         for candidate, requirement, expected in [
-            ("23.2.1", "major==23,minor>=2", True),
-            ("23.1.9", "major==23,minor>=2", False),
-            ("24.2.1", "major==23,minor>=2", False),
-            ("23.2.1", "major!=24,minor<3,patch<=1", True),
-            ("23.2.1", "patch>1", False),
-            ("23.2.1.9", "patch==1", True),
-            ("23", "minor==0,patch==0", True),
-            ("23.2", "patch==0", True),
-            ("23.2.1-rc1+build", " major == 23 , minor >= 2 , patch == 1 ", True),
-            ([23, 2, 1], "major==23,minor>=2", True),
-            ((23, 2, 1), "patch==1", True),
+            ("23.2.1", "major()==23,minor()>=2", True),
+            ("23.1.9", "major()==23,minor()>=2", False),
+            ("24.2.1", "major()==23,minor()>=2", False),
+            ("23.2.1", "major()!=24,minor()<3,patch()<=1", True),
+            ("23.2.1", "patch()>1", False),
+            ("23.2.1.9", "patch()==1", True),
+            ("23", "minor()==0,patch()==0", True),
+            ("23.2", "patch()==0", True),
+            ("23.2.1-rc1+build", " major() == 23 , minor() >= 2 , patch() == 1 ", True),
+            ([23, 2, 1], "major()==23,minor()>=2", True),
+            ((23, 2, 1), "patch()==1", True),
         ]:
             _assert_eq(env, versions.check_all_requirements(candidate, requirement, mode = mode), expected, "{}: {} {}".format(mode, candidate, requirement))
             parsed = versions.parse_requirements(requirement, mode = mode)
             _assert_eq(env, versions.check_all_requirements(candidate, parsed, mode = mode), expected)
-        _assert_eq(env, versions.check_one_requirement("23.2.1", "minor>=2", mode = mode), True)
-        _assert_eq(env, versions.check_all_requirements("23.2.1", ["major==23", "minor>=2", ">=23.2.0"], mode = mode), True)
-        _assert_eq(env, versions.parse_requirements("major==23,minor>=2,patch!=1,>=23.2", mode = mode), [
+        _assert_eq(env, versions.check_one_requirement("23.2.1", "minor()>=2", mode = mode), True)
+        _assert_eq(env, versions.check_all_requirements("23.2.1", ["major()==23", "minor()>=2", ">=23.2.0"], mode = mode), True)
+        _assert_eq(env, versions.parse_requirements("major()==23,minor()>=2,patch()!=1,>=23.2", mode = mode), [
             struct(component = "major", op = "==", version = [23]),
             struct(component = "minor", op = ">=", version = [2]),
             struct(component = "patch", op = "!=", version = [1]),
@@ -759,7 +759,6 @@ def _versions_functions_test(ctx):
         for mode in ["legacy", "semver"]:
             _assert_eq(env, versions.check_all_requirements(candidate, clause, mode = mode), expected, "{}: {} {}".format(mode, candidate, clause))
             _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(clause, mode = mode), mode = mode), expected)
-    _assert_eq(env, versions.parse_requirements("major()==23"), versions.parse_requirements("major==23"))
     return unittest.end(env)
 
 def _invalid_version_operation_impl(ctx):
@@ -877,15 +876,18 @@ def versions_test_suite(name = "versions_tests"):
         ("compatible_negated_single", "extended", "!~=1", "at least two release components"),
         ("compatible_negated_wildcard", "extended", "!~=1.2.*", "only support"),
         ("compatible_negated_parsed_wildcard", "extended_parsed", "!~=1.2.*", "only support"),
-        ("named_missing_operator", "extended_parsed", "major23", "requires =="),
-        ("named_single_equals", "extended_parsed", "major=23", "requires =="),
-        ("named_compatible", "extended_parsed", "minor~=2.1", "requires =="),
-        ("named_extended", "extended_parsed", "patch~~=2.*", "requires =="),
-        ("named_wildcard", "extended_parsed", "major==23.*", "non-negative integer operand"),
-        ("named_multiple_parts", "extended_parsed", "minor>=23.2", "non-negative integer operand"),
-        ("named_suffix", "extended_parsed", "patch==1-rc1", "non-negative integer operand"),
-        ("named_negative", "extended_parsed", "minor>=-1", "non-negative integer operand"),
-        ("named_empty", "extended_parsed", "major==", "non-negative integer operand"),
+        ("named_missing_operator", "extended_parsed", "major23", "non-negative numeric release components"),
+        ("named_single_equals", "extended_parsed", "major()=23", "non-negative numeric release components"),
+        ("named_compatible", "extended_parsed", "minor()~=2.1", "requires =="),
+        ("named_extended", "extended_parsed", "patch()~~=2.*", "requires =="),
+        ("named_wildcard", "extended_parsed", "major()==23.*", "non-negative integer operand"),
+        ("named_multiple_parts", "extended_parsed", "minor()>=23.2", "non-negative integer operand"),
+        ("named_suffix", "extended_parsed", "patch()==1-rc1", "non-negative integer operand"),
+        ("named_negative", "extended_parsed", "minor()>=-1", "non-negative integer operand"),
+        ("named_empty", "extended_parsed", "major()==", "non-negative integer operand"),
+        ("bare_major", "extended_parsed", "major==23", "Unknown version function or reference"),
+        ("bare_minor", "extended_parsed", "minor==23", "Unknown version function or reference"),
+        ("bare_patch", "extended_parsed", "patch==23", "Unknown version function or reference"),
         ("function_unknown", "extended", "unknown()==23", "Unknown version function"),
         ("function_unbalanced", "extended", "prefix(2==23", "Unbalanced version expression"),
         ("function_duplicate_keyword", "extended", "prefix(count=2,count=3)==23", "duplicate version function keyword"),
