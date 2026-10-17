@@ -22,7 +22,7 @@ def _maybe_int(value):
         return int(value)
     return value
 
-def _parse_pre_release(version):
+def _legacy_parse_pre_release(version):
     parts = [_maybe_int(v) for v in version.split(".")]
     results = []
     for part in parts:
@@ -44,10 +44,6 @@ def _parse_pre_release(version):
         else:
             results.append(part)
     return results
-
-def _parse_build(version):
-    parts = [_maybe_int(v) for v in version.split(".")]
-    return parts
 
 def _split_version_relese_build(version, *, skip_build = False):
     """Parse `version` aspects for pre-release and build.
@@ -75,14 +71,14 @@ def _split_version_relese_build(version, *, skip_build = False):
                 r = p
 
     if r and b:
-        rel = _parse_pre_release(version[r + 1:b])
+        rel = _legacy_parse_pre_release(version[r + 1:b])
         if skip_build:
             bld = []
         else:
             bld = _parse_build(version[b + 1:])
         return [version[:r], "-"] + rel + ["+"] + bld
     elif r:
-        rel = _parse_pre_release(version[r + 1:])
+        rel = _legacy_parse_pre_release(version[r + 1:])
         return [version[:r], "-"] + rel
     elif b:
         if skip_build:
@@ -93,13 +89,17 @@ def _split_version_relese_build(version, *, skip_build = False):
     else:
         return [version]
 
+def _parse_build(version):
+    parts = [_maybe_int(v) for v in version.split(".")]
+    return parts
+
 def _list_find(values, needle, default = None):
     for pos in range(len(values)):
         if values[pos] == needle:
             return pos
     return default
 
-def _parse_version(version, *, skip_build = False, error = "Cannot parse version."):
+def _legacy_parse_version(version, *, skip_build = False, error = "Cannot parse version."):
     """Parses the input into a `list` or `tuple` of version components.
 
     Args:
@@ -164,6 +164,34 @@ def _parse_version(version, *, skip_build = False, error = "Cannot parse version
     else:
         fail(extra_error)
 
+def _release_parse_version(version):
+    # Select release components before the legacy suffix normalization. This also
+    # handles suffixes on short releases such as 1-rc.1 without losing components.
+    if type(version) == "string":
+        version = version.split("+", 1)[0].split("-", 1)[0]
+    return _legacy_parse_version(version)
+
+def _check_mode(mode):
+    if mode not in ["legacy", "semver"]:
+        fail("Version mode must be 'legacy' or 'semver'; got '{}'.".format(mode))
+
+def _parse_version(version, *, skip_build = False, error = "Cannot parse version.", mode = "legacy"):
+    """Parses a version; legacy preserves historical normalization, semver preserves identifiers.
+
+    Args:
+        version: Version string, integer, list, or tuple.
+        skip_build: Drop build metadata.
+        error: Custom failure message for unsupported input types.
+        mode: "legacy" (default) preserves historical behavior; "semver" uses SemVer precedence.
+
+    Returns:
+        List of components, preserving the original release component count.
+    """
+    _check_mode(mode)
+    if mode == "legacy":
+        return _legacy_parse_version(version, skip_build = skip_build, error = error)
+    return _constraint_parse(version, skip_build = skip_build)
+
 def _cmp(lhs, rhs):
     if lhs == rhs:
         return 0
@@ -180,6 +208,169 @@ def _cmp(lhs, rhs):
     lhs = str(lhs)
     rhs = str(rhs)
     return int(lhs > rhs) - int(lhs < rhs)
+
+def _release_components(parsed):
+    return parsed[:min(_list_find(parsed, "-", len(parsed)), _list_find(parsed, "+", len(parsed)))]
+
+def _version_components(version, *, start = 0, end = None, pad = False):
+    """Returns selected release components as a dot-separated string.
+
+    Args:
+        version: A version accepted by `parse`; suffixes are excluded.
+        start: Inclusive index, relative to the original length when negative.
+        end: Exclusive index; None uses the original length.
+        pad: Extend with zeros to an explicitly supplied positive end before slicing.
+
+    Returns:
+        Selected release components, or an empty string for an empty selection.
+    """
+    if type(start) != "int" or (end != None and type(end) != "int"):
+        fail("Component indices must be integers or end = None.")
+    parts = _release_components(_release_parse_version(version))
+    size = len(parts)
+    start = max(0, size + start) if start < 0 else start
+    end = size if end == None else (max(0, size + end) if end < 0 else end)
+    if pad and end > size:
+        parts = parts + [0] * (end - size)
+    return ".".join([str(part) for part in parts[start:end]])
+
+def _version_prefix(version, count):
+    """Returns at most count release components as a dot-separated string.
+
+    Args:
+        version: A version accepted by `parse`; suffixes are excluded.
+        count: Non-negative number of components to select, without padding.
+
+    Returns:
+        The release prefix, or an empty string when count is zero.
+    """
+    if type(count) != "int" or count < 0:
+        fail("Prefix count must be a non-negative integer.")
+    return _version_components(version, end = count)
+
+def _constraint_parse(version, *, skip_build = True):
+    # Validate raw suffix identifiers before converting numeric strings; this
+    # retains enough information to reject leading zeros in prereleases.
+    if type(version) == "string":
+        release_build = version.split("+", 1)
+        release_pre = release_build[0].split("-", 1)
+        release_parts = release_pre[0].split(".")
+        if any([len(part) > 1 and part[0] == "0" and part.isdigit() for part in release_parts]):
+            fail("Numeric SemVer release components must not have leading zeros.")
+        parsed = _legacy_parse_version(release_pre[0])
+        if len(release_pre) == 2:
+            parsed += ["-"] + release_pre[1].split(".")
+        if len(release_build) == 2:
+            parsed += ["+"] + release_build[1].split(".")
+    else:
+        parsed = _legacy_parse_version(version)
+    release = _release_components(parsed)
+    if not release or not all([type(part) == "int" and part >= 0 for part in release]):
+        fail("Version constraints require non-negative numeric release components.")
+    suffix = parsed[len(release):]
+    build = False
+    for index, part in enumerate(suffix):
+        if index == 0 and part == "-":
+            continue
+        if part == "+" and not build:
+            build = True
+            continue
+        identifier = str(part)
+        if not identifier or not all([char in "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-" for char in identifier.elems()]):
+            fail("Version suffixes require non-empty SemVer identifiers.")
+        if not build and identifier.isdigit() and len(identifier) > 1 and identifier[0] == "0":
+            fail("Numeric SemVer prerelease identifiers must not have leading zeros.")
+    if suffix and (len(suffix) == 1 or suffix[-1] == "+"):
+        fail("Version suffixes require non-empty SemVer identifiers.")
+    if skip_build:
+        parsed = parsed[:_list_find(parsed, "+", len(parsed))]
+    return [_maybe_int(part) for part in parsed]
+
+def _identifiers_cmp(lhs, rhs):
+    for left, right in zip(lhs, rhs):
+        result = _cmp(left, right)
+        if result:
+            return result
+    return _cmp(len(lhs), len(rhs))
+
+def _constraint_cmp(lhs, rhs):
+    left = _release_components(lhs)
+    right = _release_components(rhs)
+    width = max(len(left), len(right))
+    result = _identifiers_cmp(left + [0] * (width - len(left)), right + [0] * (width - len(right)))
+    if result:
+        return result
+    left_suffix = lhs[len(left):]
+    right_suffix = rhs[len(right):]
+    left_pre = left_suffix[1:_list_find(left_suffix, "+", len(left_suffix))] if left_suffix and left_suffix[0] == "-" else []
+    right_pre = right_suffix[1:_list_find(right_suffix, "+", len(right_suffix))] if right_suffix and right_suffix[0] == "-" else []
+    if bool(left_pre) != bool(right_pre):
+        return -1 if left_pre else 1
+    result = _identifiers_cmp(left_pre, right_pre)
+    if result:
+        return result
+    return _identifiers_cmp(
+        left_suffix[_list_find(left_suffix, "+", len(left_suffix)) + 1:],
+        right_suffix[_list_find(right_suffix, "+", len(right_suffix)) + 1:],
+    )
+
+def _has_wildcard(version):
+    if type(version) == "string":
+        return "*" in version
+    if type(version) in ["list", "tuple"]:
+        return any(["*" in str(part) for part in version])
+    return False
+
+def _match_prefix(pattern):
+    parts = pattern.split(".") if type(pattern) == "string" else _parse_version(pattern)
+    if len(parts) < 2 or parts[-1] != "*" or not all([str(part).isdigit() for part in parts[:-1]]):
+        fail("A wildcard pattern must be a numeric release prefix followed by a single trailing '.*'.")
+    return [int(part) for part in parts[:-1]]
+
+def _version_matches(version, pattern, *, skip_build = True, mode = "semver"):
+    """Returns whether version matches an exact version or a trailing .* pattern.
+
+    Args:
+        version: Candidate with numeric release components and SemVer suffixes.
+        pattern: An exact version, or a numeric release prefix followed by .*.
+        skip_build: Ignore build metadata, as SemVer requires for precedence.
+        mode: "semver" (default) or "legacy" for historical comparisons.
+
+    Returns:
+        Whether the exact version or whole-component release prefix matches.
+        Release comparisons pad missing components with zeros. A wildcard ignores
+        suffixes; admitting prereleases remains a separate caller policy.
+    """
+    _check_mode(mode)
+    candidate = _parse_version(version, skip_build = skip_build, mode = mode)
+    if _has_wildcard(pattern):
+        prefix = _match_prefix(pattern)
+        release = _release_components(candidate)
+        return (release + [0] * max(0, len(prefix) - len(release)))[:len(prefix)] == prefix
+    return _version_cmp(candidate, pattern, skip_build = skip_build, mode = mode) == 0
+
+def _version_compatible(version, required, *, skip_build = True, mode = "semver"):
+    """Returns whether version satisfies the compatible release requirement ~=required.
+
+    Args:
+        version: Candidate version, using SemVer prerelease/build syntax.
+        required: Lower bound with at least two numeric release components.
+            All but its last release component determine the required prefix.
+        skip_build: Ignore build metadata for precedence, as SemVer requires.
+        mode: "semver" (default) or "legacy" for historical comparisons.
+
+    Returns:
+        Whether the candidate shares the required prefix and meets the lower bound.
+        Release comparisons are zero-padded without discarding operand precision.
+        Prerelease admission is a separate caller policy, as with ge/lt.
+    """
+    _check_mode(mode)
+    candidate = _parse_version(version, skip_build = skip_build, mode = mode)
+    minimum = _parse_version(required, skip_build = skip_build, mode = mode)
+    release = _release_components(minimum)
+    if len(release) < 2:
+        fail("A compatible release requirement needs at least two release components.")
+    return _version_matches(candidate, release[:-1] + ["*"], mode = mode) and _version_cmp(candidate, minimum, skip_build = skip_build, mode = mode) >= 0
 
 def _extra_cmp(lhs, rhs):
     """Comparisons respecting `None`, "-" and "+"."""
@@ -209,16 +400,16 @@ def _at_or(array, pos, default = None):
         return array[pos]
     return default
 
-def _version_cmp(version_lhs, version_rhs, *, skip_build = True):
+def _legacy_version_cmp(version_lhs, version_rhs, *, skip_build = True):
     """Implements `version_lhs` <=> `version_rhs`."""
-    lhs = _parse_version(
+    lhs = _legacy_parse_version(
         version = version_lhs,
         skip_build = skip_build,
         error = "Left hand argument is neither string, int nor list but {typ}.".format(
             typ = type(version_lhs),
         ),
     )
-    rhs = _parse_version(
+    rhs = _legacy_parse_version(
         version = version_rhs,
         skip_build = skip_build,
         error = "Right hand argument is neither string, int nor list {typ}.".format(
@@ -242,69 +433,91 @@ def _version_cmp(version_lhs, version_rhs, *, skip_build = True):
     # All parts available on both sides are the same.
     return _cmp(len(lhs), len(rhs))
 
-def _version_ge(version_lhs, version_rhs, *, skip_build = True):
+def _version_cmp(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
+    """Compares versions using legacy behavior or zero-padded SemVer precedence."""
+    _check_mode(mode)
+    if mode == "legacy":
+        return _legacy_version_cmp(version_lhs, version_rhs, skip_build = skip_build)
+    return _constraint_cmp(
+        _constraint_parse(version_lhs, skip_build = skip_build),
+        _constraint_parse(version_rhs, skip_build = skip_build),
+    )
+
+def _version_ge(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Implements `version_lhs` >= `version_rhs`."""
-    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build) >= 0
+    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build, mode = mode) >= 0
 
-def _version_le(version_lhs, version_rhs, *, skip_build = True):
+def _version_le(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Implements `version_lhs` <= `version_rhs`."""
-    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build) <= 0
+    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build, mode = mode) <= 0
 
-def _version_eq(version_lhs, version_rhs, *, skip_build = True):
+def _version_eq(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Implements `version_lhs` == `version_rhs`."""
-    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build) == 0
+    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build, mode = mode) == 0
 
-def _version_lt(version_lhs, version_rhs, *, skip_build = True):
+def _version_lt(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Implements `version_lhs` < `version_rhs`."""
-    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build) < 0
+    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build, mode = mode) < 0
 
-def _version_gt(version_lhs, version_rhs, *, skip_build = True):
+def _version_gt(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Implements `version_lhs` > `version_rhs`."""
-    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build) > 0
+    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build, mode = mode) > 0
 
-def _version_ne(version_lhs, version_rhs, *, skip_build = True):
+def _version_ne(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Implements `version_lhs` != `version_rhs`."""
-    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build) != 0
+    return _version_cmp(version_lhs, version_rhs, skip_build = skip_build, mode = mode) != 0
 
-def _version_compare(lhs, op, rhs, *, skip_build = True, error = None):
-    """Implements `lhs OP rhs`."""
+def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "legacy"):
+    """Implements `lhs OP rhs` using the selected comparison mode."""
+    _check_mode(mode)
+    if _has_wildcard(rhs):
+        if op == "==":
+            return _version_matches(lhs, rhs, skip_build = skip_build, mode = mode)
+        elif op == "!=":
+            return not _version_matches(lhs, rhs, skip_build = skip_build, mode = mode)
+        fail("Wildcard requirements only support '==' and '!='.")
     if op == ">=":
-        return _version_ge(lhs, rhs, skip_build = skip_build)
+        return _version_ge(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == "<=":
-        return _version_le(lhs, rhs, skip_build = skip_build)
+        return _version_le(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == "<":
-        return _version_lt(lhs, rhs, skip_build = skip_build)
+        return _version_lt(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == ">":
-        return _version_gt(lhs, rhs, skip_build = skip_build)
+        return _version_gt(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == "==":
-        return _version_eq(lhs, rhs, skip_build = skip_build)
+        return _version_eq(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == "!=":
-        return _version_ne(lhs, rhs, skip_build = skip_build)
+        return _version_ne(lhs, rhs, skip_build = skip_build, mode = mode)
+    elif op == "~=":
+        return _version_compatible(lhs, rhs, skip_build = skip_build, mode = mode)
     elif error:
         fail(error)
     else:
         fail("Bad comparator: '{op}'.".format(op = op))
 
-def _check_one_requirement_struct(version, requirement, *, skip_build = True):
+def _check_one_requirement_struct(version, requirement, *, skip_build = True, mode = "legacy"):
     return _version_compare(
         version,
         requirement.op,
         requirement.version,
         skip_build = skip_build,
+        mode = mode,
         error = "Bad requirement: '{requirement}'.".format(requirement = requirement),
     )
 
-def _check_one_requirement(version, requirement, *, skip_build = True):
+def _check_one_requirement(version, requirement, *, skip_build = True, mode = "legacy"):
     """Version comparison of the given `version` against a `requirement` string.
 
     The requirement has the form:
-        ("<", "<=", ">", ">=", "!=", "==") <digit>+ ("." <digit>+)+
+        ("<", "<=", ">", ">=", "!=", "==", "~=") <digit>+ ("." <digit>+)+
 
-    With the exception of comparators '==' and '!=':
-        At most 3 parts (major, minor, patch) plus the lengths are considered.
+    Only '==' and '!=' accept a trailing '.*' release prefix pattern.
+    '~=' uses compatible-release semantics. Release comparisons zero-pad missing
+    components in semver mode; legacy mode retains historical comparisons.
     """
     if type(requirement) == "string":
-        if len(requirement) >= 2 and requirement[0:2] in [">=", "<=", "==", "!="]:
+        requirement = requirement.strip()
+        if len(requirement) >= 2 and requirement[0:2] in [">=", "<=", "==", "!=", "~="]:
             op = requirement[0:2]
             rhs = requirement[2:].strip()
         elif len(requirement) >= 1 and requirement[0] in [">", "<"]:
@@ -318,49 +531,57 @@ def _check_one_requirement(version, requirement, *, skip_build = True):
             op,
             rhs,
             skip_build = skip_build,
+            mode = mode,
             error = "Bad requirement: '{requirement}'.".format(requirement = requirement),
         )
-    return _check_one_requirement_struct(version, requirement, skip_build = skip_build)
+    return _check_one_requirement_struct(version, requirement, skip_build = skip_build, mode = mode)
 
-def _check_all_requirements(version, requirements, *, skip_build = True):
-    """Verifiy if `version` adheres to the `requirements` (list or string)."""
+def _check_all_requirements(version, requirements, *, skip_build = True, mode = "legacy"):
+    """Verifies whether version satisfies all requirements under the selected mode."""
+    _check_mode(mode)
     if type(requirements) == "list":
         return all([
-            _check_one_requirement(version, r, skip_build = skip_build)
+            _check_one_requirement(version, r, skip_build = skip_build, mode = mode)
             for r in requirements
         ])
     if type(requirements) == "string":
         return all([
-            _check_one_requirement(version, r.strip(), skip_build = skip_build)
+            _check_one_requirement(version, r.strip(), skip_build = skip_build, mode = mode)
             for r in requirements.split(",")
         ])
     fail("Requirements must be 'list' or 'string'.")
 
-def _parse_split_requirement(req):
-    if req.startswith(">="):
-        return struct(op = ">=", version = _parse_version(req[2:].strip()))
-    elif req.startswith(">"):
-        return struct(op = ">", version = _parse_version(req[1:].strip()))
-    elif req.startswith("<="):
-        return struct(op = "<=", version = _parse_version(req[2:].strip()))
-    elif req.startswith("<"):
-        return struct(op = "<", version = _parse_version(req[1:].strip()))
-    elif req.startswith("=="):
-        return struct(op = "==", version = _parse_version(req[2:].strip()))
-    elif req.startswith("!="):
-        return struct(op = "!=", version = _parse_version(req[2:].strip()))
-    else:
-        return struct(op = "==", version = _parse_version(req.strip()))
+def _parse_split_requirement(req, *, mode = "legacy"):
+    op = "=="
+    value = req
+    for comparator in ["~=", ">=", "<=", "==", "!=", ">", "<"]:
+        if req.startswith(comparator):
+            op = comparator
+            value = req[len(comparator):].strip()
+            break
+    if _has_wildcard(value):
+        if op not in ["==", "!="]:
+            fail("Wildcard requirements only support '==' and '!='.")
 
-def _parse_requirements(requirements):
-    """Splits the `requirements` string for use in `check_all_requirements`."""
+        # Validate before parsing so malformed suffix wildcards cannot be hidden
+        # by legacy normalization. Preserve the existing op/version struct shape.
+        return struct(op = op, version = _match_prefix(value) + ["*"])
+    return struct(op = op, version = _parse_version(value.strip(), mode = mode))
+
+def _parse_requirements(requirements, *, mode = "legacy"):
+    """Parses requirement strings; pass the same mode to check_all_requirements."""
+    _check_mode(mode)
     return [
-        _parse_split_requirement(req.strip())
+        _parse_split_requirement(req.strip(), mode = mode)
         for req in requirements.split(",")
     ]
 
 versions = struct(
     parse = _parse_version,
+    components = _version_components,
+    prefix = _version_prefix,
+    compatible = _version_compatible,
+    matches = _version_matches,
     ge = _version_ge,
     gt = _version_gt,
     le = _version_le,

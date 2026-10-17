@@ -1,5 +1,10 @@
-# 0.5.2
+# 0.6.0
 
+- Add `versions.prefix`, `versions.components`, `versions.compatible`, and `versions.matches`.
+- Support compatible-release (`~=`) requirements and trailing `.*` matching/exclusion (`==`, `!=`).
+- Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep
+  `mode = "legacy"` by default. SemVer mode zero-pads release comparisons and preserves distinct
+  prerelease identifiers such as `rc1` and `rc.1`, with lexical `rc10 < rc2` ordering.
 - Fetch shallow publication snapshots and report complete site size with a 250 MB advisory budget.
 
 # 0.5.1
