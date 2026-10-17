@@ -76,8 +76,9 @@ Provides:
 - `load("@mboworks_bzl//bzl/versions:versions.bzl", _versions = "versions")`
   - `versions` is a single import structure:
     - `parse`: Parses a version while preserving its release component count.
-    - `prefix(version, count)`: Returns at most `count` release components as a dot-separated string.
-    - `components(version, *, start = 0, end = None, pad = False)`: Returns a release component slice.
+    - `major(version, *, mode = "semver")`, `minor(...)`, `patch(...)`: Individual integer release components.
+    - `prefix(version, count, *, mode = "semver")`: Returns at most `count` release components as a dot-separated string.
+    - `components(version, *, start = 0, end = None, pad = False, mode = "semver")`: Returns a release component slice.
     - `compatible(version, required, *, skip_build = True, mode = "semver")`: Tests a compatible-release requirement.
     - `matches(version, pattern, *, skip_build = True, mode = "semver")`: Tests an exact version or a trailing `.*` pattern.
     - `ge`: Implements `L >= R`.
@@ -158,19 +159,93 @@ remains permissive for historical inputs. Never normalize a requirement with pad
 `compatible`, since that would change its compatibility boundary.
 
 The requirement-string APIs (`compare`, `check_one_requirement`, `check_all_requirements`, and
-`parse_requirements`) support `~=`, `==` and `!=` with trailing `.*`, and the existing `<`, `<=`, `>`,
-`>=` operators. Their default remains legacy precedence; pass `mode = "semver"` for the
+`parse_requirements`) support compatible release `~=`, its negation `!~=`, extended compatible
+release `~~=`, its negation `!~~=`, exact/prefix matching `==` and exclusion `!=`, and ordering
+`<`, `<=`, `>`, `>=`. Their default remains legacy precedence; pass `mode = "semver"` for the
 zero-padded, identifier-preserving semantics described above. A missing operator means `==`. Comma-separated clauses are ANDed, and whitespace
-around clauses and operands is accepted. Wildcards with ordering operators or `~=` fail. These are
-operators in strings, not overloaded Starlark operators:
+around clauses and operands is accepted. These are operators in strings, not overloaded Starlark
+operators:
+
+| Operator | Meaning                                             | Example     | Stable-release equivalent           |
+| -------- | --------------------------------------------------- | ----------- | ----------------------------------- |
+| `~=`     | PEP 440 compatible release boundary                 | `~=1.2`     | `>=1.2, <2.0`                       |
+| `!~=`    | Logical negation of `~=`                            | `!~=1.2`    | Outside the compatible set          |
+| `~~=`    | Extended compatible release with an explicit prefix | `~~=1.2.*`  | `>=1.2, <1.3`                       |
+| `!~~=`   | Logical negation of `~~=`                           | `!~~=1.2.*` | Outside the extended compatible set |
+
+`~~=` and the negated operators are library extensions, not PEP 440 operators. `~~=` requires a
+numeric release prefix followed by a single trailing `.*`. It combines a lower bound at the written
+prefix with whole-component prefix matching. Its prefix keeps prereleases of the next series out,
+just as `~=` does. The range column describes stable releases; prefix boundaries are also enforced
+for prereleases.
+
+In SemVer mode, unlike `==1.2.*`, `~~=1.2.*` excludes `1.2-rc.1` and `1.2.0-rc.1` because they precede the `1.2`
+lower bound. It can still match `1.2.1-rc.1`; collection-level prerelease admission remains the
+caller's policy. Negated operators return the exact logical complement of their positive form,
+without negating malformed-input errors. `versions.compatible()` and `versions.matches()` retain
+their separate meanings; the extended operator adds a lower bound to prefix matching.
+
+Wildcards with ordering operators, `~=`, or `!~=` fail. Exact operands with `~~=` or `!~~=` fail.
+Operators are recognized longest first so `!~~=` is never mistaken for one of its shorter tokens.
 
 ```starlark
 versions.compare("1.4.8", "~=", "1.4.5", mode = "semver")  # True
+versions.compare("2.0", "!~=", "1.2", mode = "semver")     # True
+versions.compare("1.2.9", "~~=", "1.2.*", mode = "semver")  # True
+versions.compare("1.3", "!~~=", "1.2.*", mode = "semver")   # True
 versions.check_one_requirement("1.2.3", "==1.2.*", mode = "semver")  # True
 versions.check_all_requirements("1.4.8", "~=1.4.5,!=1.4.7", mode = "semver")  # True
 requirements = versions.parse_requirements("==1.2.*,!=1.2.4", mode = "semver")
 versions.check_all_requirements("1.2.3", requirements, mode = "semver")  # True
 ```
+
+### Named release components
+
+Requirement clauses can compare individual numeric release components directly:
+
+```starlark
+versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode = "semver")  # True
+versions.check_one_requirement("23.1.9", "minor()>=2", mode = "semver")  # False
+versions.check_one_requirement("23.2.1.9", "patch()==1", mode = "semver")  # True
+```
+
+`major()`, `minor()`, and `patch()` select indices 0, 1, and 2, respectively. Missing minor or
+patch components are zero. Their zero-argument clauses require a single non-negative integer and
+one of `==`, `!=`, `<`, `<=`, `>`, `>=`. Function-call syntax is required: bare identifiers are
+reserved for future customizable constants and currently fail. Wildcards, suffixes, multi-part
+operands and compatible-release operators are invalid for zero-argument component clauses.
+
+`parse_requirements` adds `component = "major"`, `"minor"`, or `"patch"` to zero-argument component-call records;
+plain records keep their existing `op`/`version` shape. Both string and parsed requirement checks
+support the calls, under either comparison mode. Function expressions are library extensions to Python's
+specifier syntax and can be passed through by a selector such as `latest:major()==23,minor()>=2`.
+
+### Version-function expressions
+
+The ordinary Starlark helpers `versions.major(version)`, `minor(version)`, and `patch(version)`
+return integer components; missing minor/patch components are zero. Requirement clauses support
+calls to `major`, `minor`, `patch`, `prefix`, and `components` with an implied candidate when the
+version is omitted. Calls require parentheses; bare identifiers remain reserved for future constants.
+
+```starlark
+versions.major("23.2.1")  # 23
+versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode = "semver")  # True
+versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode = "semver")  # True
+versions.check_one_requirement("23.2.1", "components(start=1,end=3)==2.1", mode = "semver")  # True
+versions.check_one_requirement("23.2.1", "major(prefix(2))==23", mode = "semver")  # True
+```
+
+`prefix(2)` and `prefix(count=2)` use the candidate. Explicit versions use forms such as
+`prefix("24.3.2", 2)` or `components("24.3.2", start=1, end=3)`. Arguments can be integer,
+quoted-string, boolean and `None` literals, keyword arguments, or nested calls to these five
+functions. Positional arguments precede keywords. The expression inherits the requirement mode;
+`mode` cannot be overridden inside it. Variables, arithmetic, attributes and arbitrary Starlark
+code are outside this grammar. Top-level commas combine clauses; commas inside calls or quoted
+literals remain part of the expression.
+
+Parsed function clauses carry an opaque `expression` description; bare and zero-argument component
+calls use the same `component` record. Pass parsed records through to requirement checks with the
+same mode, rather than interpreting their function metadata independently.
 
 ## Paths
 
