@@ -287,7 +287,17 @@ def _version_patch(version, *, mode = "semver"):
     """Returns the integer patch component, or zero when omitted."""
     return _named_component(version, "patch", mode = mode)
 
-def _expression_value(nodes, version, mode):
+def _constant_bindings(constants):
+    if constants == None:
+        return {}
+    if type(constants) != "dict":
+        fail("Version constants must be a dict or None.")
+    for name in constants:
+        if not expression.identifier(name):
+            fail("Version constant names must be ASCII identifiers other than True, False, or None: '{}'".format(name))
+    return constants
+
+def _expression_value(nodes, version, mode, constants):
     functions = {
         "components": _version_components,
         "major": _version_major,
@@ -298,6 +308,11 @@ def _expression_value(nodes, version, mode):
     results = {}
     for index in range(len(nodes) - 1, -1, -1):
         node = nodes[index]
+        if hasattr(node, "reference"):
+            if node.reference not in constants:
+                fail("Unknown version constant: '{}'".format(node.reference))
+            results[index] = constants[node.reference]
+            continue
         args = [results[arg.node] if hasattr(arg, "node") else arg.value for arg in node.args]
         kwargs = {key: results[arg.node] if hasattr(arg, "node") else arg.value for key, arg in node.kwargs.items()}
         if "version" not in kwargs:
@@ -578,9 +593,9 @@ def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "l
     else:
         fail("Bad comparator: '{op}'.".format(op = op))
 
-def _check_one_requirement_struct(version, requirement, *, skip_build = True, mode = "legacy"):
+def _check_one_requirement_struct(version, requirement, *, skip_build = True, constants = None, mode = "legacy"):
     if hasattr(requirement, "expression"):
-        version = _expression_value(requirement.expression, version, mode)
+        version = _expression_value(requirement.expression, version, mode, constants)
     elif hasattr(requirement, "component"):
         version = _named_component(version, requirement.component, mode = mode)
     return _version_compare(
@@ -592,28 +607,31 @@ def _check_one_requirement_struct(version, requirement, *, skip_build = True, mo
         error = "Bad requirement: '{requirement}'.".format(requirement = requirement),
     )
 
-def _check_one_requirement(version, requirement, *, skip_build = True, mode = "legacy"):
+def _check_one_requirement(version, requirement, *, skip_build = True, constants = None, mode = "legacy"):
     """Version comparison of the given `version` against a `requirement` string.
 
     Compatible operators are ~= and !~=; wildcard-compatible extensions are
     ~~= and !~~=. Exact matching/exclusion uses == and !=, optionally with .*.
     Ordering uses <, <=, >, >=. All operators are requirement-string tokens.
+    constants binds bare expression names at evaluation time; calls use library functions.
     """
+    constants = _constant_bindings(constants)
     if type(requirement) == "string":
         requirement = _parse_split_requirement(requirement.strip(), mode = mode)
-    return _check_one_requirement_struct(version, requirement, skip_build = skip_build, mode = mode)
+    return _check_one_requirement_struct(version, requirement, skip_build = skip_build, constants = constants, mode = mode)
 
-def _check_all_requirements(version, requirements, *, skip_build = True, mode = "legacy"):
-    """Verifies whether version satisfies all requirements under the selected mode."""
+def _check_all_requirements(version, requirements, *, skip_build = True, constants = None, mode = "legacy"):
+    """Checks all clauses, resolving bare expression names from the constants dictionary."""
     _check_mode(mode)
+    constants = _constant_bindings(constants)
     if type(requirements) == "list":
         return all([
-            _check_one_requirement(version, r, skip_build = skip_build, mode = mode)
+            _check_one_requirement(version, r, skip_build = skip_build, constants = constants, mode = mode)
             for r in requirements
         ])
     if type(requirements) == "string":
         return all([
-            _check_one_requirement(version, r.strip(), skip_build = skip_build, mode = mode)
+            _check_one_requirement(version, r.strip(), skip_build = skip_build, constants = constants, mode = mode)
             for r in expression.clauses(requirements)
         ])
     fail("Requirements must be 'list' or 'string'.")
@@ -627,7 +645,7 @@ def _parse_split_requirement(req, *, mode = "legacy"):
     fields = {}
     if left:
         nodes = expression.parse(left)
-        if len(nodes) == 1 and nodes[0].function in _NAMED_COMPONENTS and not nodes[0].args and not nodes[0].kwargs:
+        if len(nodes) == 1 and getattr(nodes[0], "function", None) in _NAMED_COMPONENTS and not nodes[0].args and not nodes[0].kwargs:
             fields["component"] = nodes[0].function
         else:
             fields["expression"] = nodes
@@ -648,7 +666,7 @@ def _parse_split_requirement(req, *, mode = "legacy"):
     return struct(op = op, version = _parse_version(value.strip(), mode = mode), **fields)
 
 def _parse_requirements(requirements, *, mode = "legacy"):
-    """Parses requirement strings; pass the same mode to check_all_requirements."""
+    """Parses clauses without binding constants; supply their values when checking."""
     _check_mode(mode)
     return [
         _parse_split_requirement(req.strip(), mode = mode)

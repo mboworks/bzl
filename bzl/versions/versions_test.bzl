@@ -762,6 +762,47 @@ def _versions_functions_test(ctx):
             _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(clause, mode = mode), mode = mode), expected)
     return unittest.end(env)
 
+def _versions_constants_test(ctx):
+    env = unittest.begin(ctx)
+    for mode in ["legacy", "semver", "pep440"]:
+        # Parsing preserves references; the same records can check many candidates.
+        parsed = versions.parse_requirements("major==23,minor>=2", mode = mode)
+        for version, expected in [("23.2.1", True), ("23.1.9", False), ("24.2.1", False)]:
+            bindings = {"major": versions.major(version, mode = mode), "minor": versions.minor(version, mode = mode)}
+            before = dict(bindings)
+            _assert_eq(env, versions.check_all_requirements(version, parsed, constants = bindings, mode = mode), expected)
+            _assert_eq(env, versions.check_all_requirements(version, "major==23,minor>=2", constants = bindings, mode = mode), expected)
+            _assert_eq(env, bindings, before)
+        for clause in [
+            "major==99,major()==23",
+            "prefix==24.3,prefix(2)==23.2",
+            "major(prefix)==24",
+            "prefix(width)==23.2",
+            "prefix(count=width)==23.2",
+            "prefix(version=Other_version,count=width)==24.3",
+            "components(start=offset,end=limit,pad=padding)==2.1.0",
+            "components(end=stop)==23.2.1",
+            "prefix(components(start=offset,end=limit),width)==2.1",
+        ]:
+            bindings = {"Other_version": "24.3.2", "limit": 4, "major": 99, "offset": 1, "padding": True, "prefix": "24.3", "stop": None, "width": 2}
+            _assert_eq(env, versions.check_all_requirements("23.2.1", clause, constants = bindings, mode = mode), True, clause)
+            for requirement in versions.parse_requirements(clause, mode = mode):
+                _assert_eq(env, versions.check_one_requirement("23.2.1", requirement, constants = bindings, mode = mode), True)
+        _assert_eq(env, versions.check_one_requirement("23.2.1", "major==99", constants = {"major": 99}, mode = mode), True)
+        _assert_eq(env, versions.check_all_requirements("23.2.1", ["major==23", "minor()>=2"], constants = {"major": 23}, mode = mode), True)
+        _assert_eq(env, versions.check_one_requirement("23.2.1", "major()==23", constants = {}, mode = mode), True)
+        _assert_eq(env, versions.check_one_requirement("23.2.1", "major()==23", constants = None, mode = mode), True)
+    for value in ["23.2", [23, 2], (23, 2)]:
+        _assert_eq(env, versions.check_one_requirement("1", "chosen==23.2", constants = {"chosen": value}, mode = "semver"), True)
+    _assert_eq(env, versions.check_one_requirement("1", "chosen==1.2.3+one", constants = {"chosen": "1.2.3+two"}, mode = "semver"), True)
+    _assert_eq(env, versions.check_one_requirement("1", "chosen==1.2.3+one", skip_build = False, constants = {"chosen": "1.2.3+two"}, mode = "semver"), False)
+    parsed_version = versions.parse("1!23.2rc1", mode = "pep440")
+    _assert_eq(env, versions.check_one_requirement("1", "chosen==1!23.2rc1", constants = {"chosen": parsed_version}, mode = "pep440"), True)
+    _assert_eq(env, versions.check_one_requirement("1", "chosen==23.0", constants = {"chosen": 23}, mode = "legacy"), False)
+    _assert_eq(env, versions.check_one_requirement("1", "chosen==23.0", constants = {"chosen": 23}, mode = "semver"), True)
+    _assert_eq(env, versions.check_one_requirement("1", 'prefix("chosen", 1)==chosen', constants = {"chosen": "24.3"}), True)
+    return unittest.end(env)
+
 def _versions_pep440_test(ctx):
     env = unittest.begin(ctx)
     for raw, normalized in PEP440_CASES["normalized"]:
@@ -806,6 +847,17 @@ def _versions_pep440_test(ctx):
 def _invalid_version_operation_impl(ctx):
     if ctx.attr.operation == "compatible":
         versions.compatible("1.4.5", ctx.attr.required)
+    elif ctx.attr.operation == "constants_type":
+        versions.check_all_requirements("23.2", "major()==23", constants = [], mode = "semver")
+    elif ctx.attr.operation == "constants_key":
+        versions.check_one_requirement("23.2", "major()==23", constants = {ctx.attr.required: 23}, mode = "semver")
+    elif ctx.attr.operation == "constants_key_type":
+        versions.check_one_requirement("23.2", "major()==23", constants = {1: 23}, mode = "semver")
+    elif ctx.attr.operation == "constants_missing_parsed":
+        requirements = versions.parse_requirements(ctx.attr.required, mode = "semver")
+        versions.check_all_requirements("23.2", requirements, constants = {"major": 23}, mode = "semver")
+    elif ctx.attr.operation == "constants_callable":
+        versions.check_one_requirement("23.2", ctx.attr.required, constants = {"custom": versions.major}, mode = "semver")
     elif ctx.attr.operation == "extended":
         versions.check_one_requirement("1.2.3", ctx.attr.required, mode = "semver")
     elif ctx.attr.operation == "extended_parsed":
@@ -855,6 +907,7 @@ versions_pep440_test = unittest.make(_versions_pep440_test)
 versions_compatible_operators_test = unittest.make(_versions_compatible_operators_test)
 versions_named_components_test = unittest.make(_versions_named_components_test)
 versions_functions_test = unittest.make(_versions_functions_test)
+versions_constants_test = unittest.make(_versions_constants_test)
 versions_ge_test = unittest.make(_versions_ge_test)
 versions_gt_test = unittest.make(_versions_gt_test)
 versions_le_test = unittest.make(_versions_le_test)
@@ -884,6 +937,7 @@ def versions_test_suite(name = "versions_tests"):
         versions_compatible_operators_test,
         versions_named_components_test,
         versions_functions_test,
+        versions_constants_test,
         versions_ge_test,
         versions_gt_test,
         versions_le_test,
@@ -933,9 +987,18 @@ def versions_test_suite(name = "versions_tests"):
         ("named_suffix", "extended_parsed", "patch()==1-rc1", "non-negative integer operand"),
         ("named_negative", "extended_parsed", "minor()>=-1", "non-negative integer operand"),
         ("named_empty", "extended_parsed", "major()==", "non-negative integer operand"),
-        ("bare_major", "extended_parsed", "major==23", "Unknown version function or reference"),
-        ("bare_minor", "extended_parsed", "minor==23", "Unknown version function or reference"),
-        ("bare_patch", "extended_parsed", "patch==23", "Unknown version function or reference"),
+        ("bare_major", "extended", "major==23", "Unknown version constant"),
+        ("bare_minor", "extended", "minor==23", "Unknown version constant"),
+        ("bare_patch", "extended", "patch==23", "Unknown version constant"),
+        ("constants_type", "constants_type", "", "Version constants must be a dict"),
+        ("constants_key_type", "constants_key_type", "", "constant names must be ASCII identifiers"),
+        ("constants_missing_parsed", "constants_missing_parsed", "missing==23", "Unknown version constant: 'missing'"),
+        ("constants_case_sensitive", "constants_missing_parsed", "Major==23", "Unknown version constant: 'Major'"),
+        ("constants_bad_key", "constants_key", "bad-key", "constant names must be ASCII identifiers"),
+        ("constants_reserved_key", "constants_key", "True", "constant names must be ASCII identifiers"),
+        ("constants_empty_key", "constants_key", "", "constant names must be ASCII identifiers"),
+        ("constants_not_functions", "constants_callable", "custom()==23", "Unknown version function"),
+        ("constants_invalid_reference", "extended", "object.field==23", "Unknown version function or reference"),
         ("function_unknown", "extended", "unknown()==23", "Unknown version function"),
         ("function_unbalanced", "extended", "prefix(2==23", "Unbalanced version expression"),
         ("function_duplicate_keyword", "extended", "prefix(count=2,count=3)==23", "duplicate version function keyword"),
@@ -945,7 +1008,7 @@ def versions_test_suite(name = "versions_tests"):
         ("function_expression", "extended", "prefix(1+1)==23", "arguments must be"),
         ("function_string_unclosed", "extended", "major('23)==23", "Unbalanced version expression"),
         ("function_bad_count", "extended", "prefix(-1)==23", "non-negative integer"),
-        ("function_nonliteral", "extended", "prefix(variable)==23", "arguments must be"),
+        ("function_nonliteral", "extended", "prefix(variable)==23", "Unknown version constant"),
         ("unknown_mode", "mode", "", "Version mode must be"),
         ("negative_prefix", "prefix", "", "non-negative integer"),
         ("invalid_index", "components", "", "Component indices must be integers"),

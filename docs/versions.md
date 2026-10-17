@@ -12,20 +12,20 @@ versions or requirements between calls.
 
 ## API and defaults
 
-| Function                                                                            | Result                                                | Default mode |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------ |
-| `parse(version, *, skip_build=False, error="Cannot parse version.", mode="legacy")` | Component list or PEP 440 record                      | `legacy`     |
-| `cmp(lhs, rhs, *, skip_build=True, mode="legacy")`                                  | `-1`, `0`, or `1`                                     | `legacy`     |
-| `eq`, `ne`, `lt`, `le`, `gt`, `ge` with the same arguments as `cmp`                 | Boolean precedence comparison                         | `legacy`     |
-| `compare(lhs, op, rhs, *, skip_build=True, error=None, mode="legacy")`              | Boolean requirement-clause result                     | `legacy`     |
-| `check_one_requirement(version, requirement, *, skip_build=True, mode="legacy")`    | Boolean; string or parsed clause                      | `legacy`     |
-| `check_all_requirements(version, requirements, *, skip_build=True, mode="legacy")`  | Boolean; all clauses must hold                        | `legacy`     |
-| `parse_requirements(requirements, *, mode="legacy")`                                | List of parsed clause records                         | `legacy`     |
-| `prefix(version, count, *, mode="semver")`                                          | First at most `count` release components, as a string | `semver`     |
-| `components(version, *, start=0, end=None, pad=False, mode="semver")`               | Release slice, as a string                            | `semver`     |
-| `major`, `minor`, `patch` with `(version, *, mode="semver")`                        | Individual integer component                          | `semver`     |
-| `compatible(version, required, *, skip_build=True, mode="semver")`                  | Compatible-release predicate                          | `semver`     |
-| `matches(version, pattern, *, skip_build=True, mode="semver")`                      | Exact or trailing-wildcard match                      | `semver`     |
+| Function                                                                                           | Result                                                | Default mode |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------ |
+| `parse(version, *, skip_build=False, error="Cannot parse version.", mode="legacy")`                | Component list or PEP 440 record                      | `legacy`     |
+| `cmp(lhs, rhs, *, skip_build=True, mode="legacy")`                                                 | `-1`, `0`, or `1`                                     | `legacy`     |
+| `eq`, `ne`, `lt`, `le`, `gt`, `ge` with the same arguments as `cmp`                                | Boolean precedence comparison                         | `legacy`     |
+| `compare(lhs, op, rhs, *, skip_build=True, error=None, mode="legacy")`                             | Boolean requirement-clause result                     | `legacy`     |
+| `check_one_requirement(version, requirement, *, skip_build=True, constants=None, mode="legacy")`   | Boolean; string or parsed clause                      | `legacy`     |
+| `check_all_requirements(version, requirements, *, skip_build=True, constants=None, mode="legacy")` | Boolean; all clauses must hold                        | `legacy`     |
+| `parse_requirements(requirements, *, mode="legacy")`                                               | List of parsed clause records                         | `legacy`     |
+| `prefix(version, count, *, mode="semver")`                                                         | First at most `count` release components, as a string | `semver`     |
+| `components(version, *, start=0, end=None, pad=False, mode="semver")`                              | Release slice, as a string                            | `semver`     |
+| `major`, `minor`, `patch` with `(version, *, mode="semver")`                                       | Individual integer component                          | `semver`     |
+| `compatible(version, required, *, skip_build=True, mode="semver")`                                 | Compatible-release predicate                          | `semver`     |
+| `matches(version, pattern, *, skip_build=True, mode="semver")`                                     | Exact or trailing-wildcard match                      | `semver`     |
 
 Existing parsing/comparison APIs default to historical behavior; the newer component/matching
 helpers default to SemVer mode. `eq`/`ne` mean equality/inequality, `lt`/`le` mean less than/at most,
@@ -291,11 +291,11 @@ can match `1.2.1-rc1`/`1.2.1rc1`. `==1.2.*` has no such lower bound. Negations c
 positive predicate but still fail on malformed input. Extended compatibility requires `.*`;
 compatible and ordered operands cannot use wildcards.
 
-## Requirement function expressions
+## Requirement expressions and constants
 
 Requirement clauses can use `major`, `minor`, `patch`, `prefix` and `components` as function calls on
 the left side. Omit the version to use the candidate. Calls require parentheses. Bare identifiers
-are reserved for future customizable constants and currently fail:
+refer to caller-supplied constants, described below:
 
 ```starlark
 versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode="semver")  # True
@@ -314,28 +314,69 @@ Use `prefix("24.3.2", 2)` or `prefix(version="24.3.2", count=2)` for an explicit
 `components()` selects the candidate's complete release; `components("24.3.2", start=1, end=3)`
 uses an explicit version. `major("24.3.2")` and the corresponding minor/patch calls are also allowed.
 
-Arguments can be integer/string/boolean/`None` literals, keyword arguments, and nested calls to these
-five functions. Version strings can use either quote style and ordinary quote/backslash or newline,
+Arguments can be integer/string/boolean/`None` literals, constant references, keyword arguments,
+and nested calls to these five functions. Version strings can use either quote style and ordinary quote/backslash or newline,
 carriage-return and tab escapes. Positional arguments precede keyword arguments. `mode` is inherited
 from the requirement check and cannot be overridden inside an expression. Arbitrary Starlark code,
-variables, attribute access, arithmetic and other functions are outside this grammar.
+attribute access, arithmetic and other functions are outside this grammar.
 
 Comma-separated clauses are ANDed. Commas inside calls or quoted literals do not split clauses.
 Whitespace around clauses, names, operators and arguments is accepted. A plain version without a
 comparator means `==`; function expressions require an explicit comparator. A single `=` is not an
 equality comparator.
 
+### Caller-supplied constants
+
+`check_one_requirement` and `check_all_requirements` accept a keyword-only `constants` dictionary,
+defaulting to `None` (no bindings). A bare identifier on the left side, or inside a function's
+arguments, looks up that name in the dictionary. The right side retains the existing version-operand
+grammar; constant substitution does not rewrite version literals or arbitrary-equality operands.
+
+```starlark
+candidate = "23.2.1"
+constants = {
+    "major": versions.major(candidate),
+    "minor": versions.minor(candidate),
+    "patch": versions.patch(candidate),
+    "width": 2,
+}
+versions.check_all_requirements(
+    candidate,
+    "major==23,minor>=2,prefix(width)==23.2",
+    constants=constants,
+    mode="semver",
+)  # True
+```
+
+Names are case-sensitive ASCII identifiers matching `[A-Za-z_][A-Za-z0-9_]*`; `True`, `False`, and
+`None` remain literals and cannot be dictionary keys. The library supplies no implicit constants.
+Calls always use the library's function namespace: a `major` binding does not change `major()`.
+For example, with candidate `"23.2.1"` and `constants={"major": 99}`, `major==99,major()==23` holds.
+A dictionary key does not introduce a callable function.
+
+Values are passed to the surrounding version comparison or function and must be valid for that
+context. Integer/string/list/tuple versions, or Python-mode parsed records, can serve as comparison
+values; booleans and `None` can serve as helper arguments, such as `components(end=stop,pad=padding)`.
+Quoted strings remain literal. Values are never evaluated as source code or invoked as callbacks.
+Comparison uses the selected mode regardless of the constant's name: integer `23` equals `23.0`
+in SemVer/Python modes but precedes it in legacy mode.
+
+Parsing stores unresolved references without capturing a dictionary. Supply bindings when checking
+both string and pre-parsed requirements; a missing name fails at evaluation. Reuse parsed clauses
+across candidates and construct a fresh dictionary for each candidate when values depend on its
+version. The library neither recomputes values nor mutates the supplied dictionary.
+
 ## Parsed requirements and failures
 
 `check_all_requirements` accepts a comma-separated string or a list of strings/parsed records.
 `check_one_requirement` accepts one string or one record. `parse_requirements` returns records with
-`op` and `version`; zero-argument component-call records also carry `component`, and other function clauses carry
-an opaque `expression` description. Legacy/SemVer plain operands are parsed component lists, whereas
+`op` and `version`; zero-argument component-call records also carry `component`, and other expression clauses carry
+an opaque `expression` description, including unresolved constant references. Legacy/SemVer plain operands are parsed component lists, whereas
 Python plain operands retain strings for wildcard/arbitrary equality. Keep the same mode when
 parsing and checking; treating a normalized legacy suffix list as SemVer cannot restore its spelling.
 
 Invalid modes, malformed standards-mode versions, unsupported comparators, malformed wildcard
-shapes, invalid component indices/counts, and invalid function expressions fail. Some argument/arity
+shapes, invalid component indices/counts, invalid function expressions, malformed constant dictionaries, and unknown constant references fail. Some argument/arity
 and Python operand restrictions are checked during evaluation because they depend on the selected
 function or clause. A negated requirement does not suppress those failures.
 
