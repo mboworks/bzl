@@ -762,6 +762,157 @@ def _versions_functions_test(ctx):
             _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(clause, mode = mode), mode = mode), expected)
     return unittest.end(env)
 
+def _versions_introspection_test(ctx):
+    env = unittest.begin(ctx)
+    for mode in ["legacy", "semver", "pep440"]:
+        for candidate, count in [("1", 1), ("1.2", 2), ("1.2.0.4", 4), ([1, 2, 3], 3), ((1, 2), 2)]:
+            _assert_eq(env, versions.component_count(candidate, mode = mode), count)
+        for index, expected in [(-5, 0), (-4, 1), (-3, 2), (-1, 4), (0, 1), (1, 2), (3, 4), (4, 0), (99, 0)]:
+            _assert_eq(env, versions.component("1.2.3.4", index, mode = mode), expected)
+        for index, named in [(0, versions.major), (1, versions.minor), (2, versions.patch)]:
+            for candidate in ["1", "1.2", "1.2.3"]:
+                _assert_eq(env, versions.component(candidate, index, mode = mode), named(candidate, mode = mode))
+    for candidate, mode, pre, is_pre in [
+        ("1.2.3", "semver", "", False),
+        ("1.2.3+rc.1", "semver", "", False),
+        ("1.2.3+-.rc1", "semver", "", False),
+        ("1.2.3--", "semver", "-", True),
+        ("1.2.3-rc1", "semver", "rc1", True),
+        ("1.2.3-rc.1+build", "semver", "rc.1", True),
+        ("1.2-0.3", "semver", "0.3", True),
+        ("1.2.3-rc1", "legacy", "rc.1", True),
+        ("1.2.3", "legacy", "", False),
+        ("1.2.3-rc1", "pep440", "rc1", True),
+        ("1.2.3preview02", "pep440", "rc2", True),
+        ("1.2.3.dev2", "pep440", "", True),
+        ("1.2.3rc1.post2.dev3+abc", "pep440", "rc1", True),
+        ("1.2.3.post2.dev3", "pep440", "", True),
+        ("1.2.3.post2", "pep440", "", False),
+        ("1.2.3+local", "pep440", "", False),
+    ]:
+        _assert_eq(env, versions.prerelease(candidate, mode = mode), pre)
+        _assert_eq(env, versions.is_prerelease(candidate, mode = mode), is_pre)
+    for candidate, prefix, expected in [
+        ("1.2.3-rc1", "rc", True),
+        ("1.2.3-rc.1", "rc", True),
+        ("1.2.3-rc.1", "rc.", False),
+        ("1.2.3-rc.1", "r", True),
+        ("1.2.3-rc.1", "RC", False),
+        ("1.2.3-RC.1", "RC", True),
+        ("1.2.3-beta.2", "rc", False),
+        ("1.2.3-0.1", "0", True),
+        ("1.2.3+rc", "rc", False),
+        ("1.2.3-rc1", "", True),
+        ("1.2.3", "", False),
+    ]:
+        _assert_eq(env, versions.has_prerelease_prefix(candidate, prefix), expected)
+    for candidate, expected in [("1.2.3", ""), ("1.2.3+001.X-y", "001.X-y"), ("1.2.3-rc1+001", "001")]:
+        _assert_eq(env, versions.build(candidate), expected)
+    _assert_eq(env, versions.build("1.2.3+001.X-y", mode = "legacy"), "1.X-y")
+    _assert_eq(env, versions.build([1, 2, 3, "+", "001", "X-y"]), "1.X-y")
+    _assert_eq(env, versions.local("1.2+Ubuntu-01_FOO"), "ubuntu.1.foo")
+    _assert_eq(env, versions.local("1.2"), "")
+    for candidate, count, pre, is_pre, local in PEP440_CASES["introspection"]:
+        _assert_eq(env, versions.component_count(candidate, mode = "pep440"), count)
+        _assert_eq(env, versions.prerelease(candidate, mode = "pep440"), pre)
+        _assert_eq(env, versions.is_prerelease(candidate, mode = "pep440"), is_pre)
+        _assert_eq(env, versions.local(candidate), local)
+    return unittest.end(env)
+
+def _versions_introspection_expressions_test(ctx):
+    env = unittest.begin(ctx)
+    for mode, candidate, clause, expected in [
+        ("semver", "1.2.3-rc1", 'prerelease()=="rc1"', True),
+        ("legacy", "1.2.3-rc1", 'prerelease()=="rc1"', False),
+        ("legacy", "1.2.3-rc1", 'prerelease()=="rc.1"', True),
+        ("pep440", "1.2.3preview2", 'prerelease()=="rc2"', True),
+        ("semver", "1.2.3-rc1", 'prerelease()!="rc.1"', True),
+        ("semver", "1.2.3", 'prerelease()==""', True),
+        ("semver", "1.2.3-rc1", "is_prerelease()==True", True),
+        ("semver", "1.2.3", "is_prerelease()!=False", False),
+        ("semver", "1.2.3+-.rc1", "is_prerelease()==False", True),
+        ("pep440", "1.2.post1.dev2", "is_prerelease()==True", True),
+        ("pep440", "1.2.post1", "is_prerelease()==False", True),
+        ("semver", "1.2.3-rc1", 'has_prerelease_prefix("rc")==True', True),
+        ("semver", "1.2.3-RC1", 'has_prerelease_prefix(prefix="rc")==False', True),
+        ("pep440", "1.2preview2", 'has_prerelease_prefix("rc")==True', True),
+        ("pep440", "1.2.dev2", 'has_prerelease_prefix("")==False', True),
+        ("semver", "1.2.3", 'is_prerelease("2.0-rc1")==True', True),
+        ("semver", "1.2.3", 'has_prerelease_prefix("2.0-rc1","rc")==True', True),
+        ("semver", "1.2.3", 'has_prerelease_prefix(version="2.0-rc1",prefix="rc")==True', True),
+        ("semver", "1.2.3.4-rc1", "component_count()==4,component(3)==4,component(index=-1)==4", True),
+        ("semver", "1.2.3", "component_count()>=3,component_count()<4,component(-4)==0", True),
+        ("semver", "1.2.3", 'component("2.5",1)==5', True),
+        ("semver", "1.2.3", 'component("2.5",index=1)==5', True),
+        ("semver", "1.2.3", "component(component_count())==0", True),
+        ("pep440", "1!1.2rc1.dev2", "component_count()==2,component(-1)==2", True),
+        ("semver", "1.2.3+001.FOO", 'build()=="001.FOO"', True),
+        ("legacy", "1.2.3+001.FOO", 'build()=="1.FOO"', True),
+        ("pep440", "1.2+Ubuntu-01_FOO", 'local()=="ubuntu.1.foo"', True),
+        ("semver", "1.2.3-rc1", "major(prefix(component_count()))==1", True),
+        ("semver", "1.2.3-rc1", 'has_prerelease_prefix("2.0-rc1",prerelease("1.0-rc1"))==True', True),
+        ("legacy", "1.2.3-rc1", 'has_prerelease_prefix("2.0-rc1",prerelease("1.0-rc1"))==True', False),
+        ("semver", "1.2.3-rc1", 'prerelease()=="rc,1",major()==1', False),
+        ("semver", "1.2.3-rc1", 'prerelease ()=="rc,1",major()==1', False),
+        ("semver", "1.2.3-rc1", 'build()!="a,b(c)\\\"d",major()==1', True),
+    ]:
+        _assert_eq(env, versions.check_one_requirement(candidate, clause, mode = mode) if "," not in clause else versions.check_all_requirements(candidate, clause, mode = mode), expected, "{} {} {}".format(mode, candidate, clause))
+        parsed = versions.parse_requirements(clause, mode = mode)
+        _assert_eq(env, versions.check_all_requirements(candidate, parsed, mode = mode), expected)
+    _assert_eq(env, versions.check_all_requirements("1.2-rc1", "has_prerelease_prefix(label)==True,component(index)==2", constants = {"index": 1, "label": "rc"}, mode = "semver"), True)
+    _assert_eq(env, versions.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc.1"'), True)
+    for name in ["build", "local", "prerelease"]:
+        for value in ['opaque"token', "opaque'token"]:
+            for mode, op in [("legacy", "=="), ("pep440", "===")]:
+                clause = name + op + value
+                _assert_eq(env, versions.check_one_requirement("1", clause, constants = {name: value}, mode = mode), True)
+                parsed = versions.parse_requirements(clause, mode = mode)
+                _assert_eq(env, versions.check_all_requirements("1", parsed, constants = {name: value}, mode = mode), True)
+    return unittest.end(env)
+
+def _versions_with_mode_test(ctx):
+    env = unittest.begin(ctx)
+    semver = versions.with_mode("semver")
+    legacy = versions.with_mode("legacy")
+    python = versions.with_mode("pep440")
+    _assert_eq(env, dir(semver), dir(versions))
+    for api, mode, candidate in [(semver, "semver", "1.2.3-rc1+001"), (legacy, "legacy", "1.2.3-rc1+001"), (python, "pep440", "1!1.2rc1.dev2+001")]:
+        _assert_eq(env, api.parse(candidate), versions.parse(candidate, mode = mode))
+        _assert_eq(env, api.component_count(candidate), versions.component_count(candidate, mode = mode))
+        _assert_eq(env, api.component(candidate, -1), versions.component(candidate, -1, mode = mode))
+        _assert_eq(env, api.components(candidate, end = 5, pad = True), versions.components(candidate, end = 5, pad = True, mode = mode))
+        _assert_eq(env, api.prefix(candidate, 2), versions.prefix(candidate, 2, mode = mode))
+        _assert_eq(env, api.prerelease(candidate), versions.prerelease(candidate, mode = mode))
+        _assert_eq(env, api.has_prerelease_prefix(candidate, "rc"), True)
+        _assert_eq(env, api.is_prerelease(candidate), True)
+        for name in ["major", "minor", "patch"]:
+            _assert_eq(env, getattr(api, name)(candidate), getattr(versions, name)(candidate, mode = mode))
+        for name in ["cmp", "eq", "ne", "lt", "le", "gt", "ge"]:
+            _assert_eq(env, getattr(api, name)("1.2", "1.2.0"), getattr(versions, name)("1.2", "1.2.0", mode = mode))
+        for name in ["compatible", "matches"]:
+            _assert_eq(env, getattr(api, name)("1.3", "1.2"), getattr(versions, name)("1.3", "1.2", mode = mode))
+        _assert_eq(env, api.compare("1.2", "==", "1.2.0"), versions.compare("1.2", "==", "1.2.0", mode = mode))
+        clause = 'has_prerelease_prefix("rc")==True,major()==1'
+        parsed = api.parse_requirements(clause)
+        _assert_eq(env, parsed, versions.parse_requirements(clause, mode = mode))
+        _assert_eq(env, api.check_all_requirements(candidate, parsed), True)
+        _assert_eq(env, api.check_one_requirement(candidate, "major==1", constants = {"major": 1}), True)
+    _assert_eq(env, semver.eq("1.2", "1.2.0"), True)
+    _assert_eq(env, legacy.eq("1.2", "1.2.0"), False)
+    _assert_eq(env, versions.eq("1.2", "1.2.0"), False)
+    _assert_eq(env, semver.eq("1.2", "1.2.0", mode = "legacy"), False)
+    _assert_eq(env, legacy.eq("1.2", "1.2.0", mode = "semver"), True)
+    _assert_eq(env, semver.prerelease("1.2.3-rc1"), "rc1")
+    _assert_eq(env, legacy.prerelease("1.2.3-rc1"), "rc.1")
+    _assert_eq(env, semver.prerelease("1.2.3-rc1", mode = "legacy"), "rc.1")
+    _assert_eq(env, legacy.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc1"', mode = "semver"), True)
+    _assert_eq(env, semver.build("1.2.3+001"), "001")
+    _assert_eq(env, legacy.build("1.2.3+001"), "1")
+    _assert_eq(env, python.local("1.2+Ubuntu-01"), "ubuntu.1")
+    _assert_eq(env, semver.local("1.2+Ubuntu-01", mode = "pep440"), "ubuntu.1")
+    _assert_eq(env, semver.with_mode("legacy").prerelease("1.2.3-rc1"), "rc.1")
+    return unittest.end(env)
+
 def _versions_constants_test(ctx):
     env = unittest.begin(ctx)
     for mode in ["legacy", "semver", "pep440"]:
@@ -868,6 +1019,24 @@ def _invalid_version_operation_impl(ctx):
         versions.check_one_requirement("1.0", ctx.attr.required, mode = "pep440")
     elif ctx.attr.operation == "mode":
         versions.parse("1.2.3", mode = "unknown")
+    elif ctx.attr.operation == "bound_mode":
+        versions.with_mode("unknown")
+    elif ctx.attr.operation == "bound_local":
+        versions.with_mode("semver").local("1.2")
+    elif ctx.attr.operation == "bound_override":
+        versions.with_mode("semver").parse("1.2", mode = "unknown")
+    elif ctx.attr.operation == "introspection_index":
+        versions.component("1.2", "1")
+    elif ctx.attr.operation == "introspection_release":
+        versions.component_count("", mode = "legacy")
+    elif ctx.attr.operation == "introspection_build_mode":
+        versions.build("1.2", mode = "pep440")
+    elif ctx.attr.operation == "introspection_local_mode":
+        versions.local("1.2", mode = "semver")
+    elif ctx.attr.operation == "introspection_prefix":
+        versions.has_prerelease_prefix("1.2-rc1", 1)
+    elif ctx.attr.operation == "introspection_version":
+        versions.prerelease("1.2.3-rc.01")
     elif ctx.attr.operation == "matches":
         versions.matches("1.2.3", ctx.attr.required)
     elif ctx.attr.operation == "compare":
@@ -908,6 +1077,9 @@ versions_compatible_operators_test = unittest.make(_versions_compatible_operator
 versions_named_components_test = unittest.make(_versions_named_components_test)
 versions_functions_test = unittest.make(_versions_functions_test)
 versions_constants_test = unittest.make(_versions_constants_test)
+versions_introspection_test = unittest.make(_versions_introspection_test)
+versions_introspection_expressions_test = unittest.make(_versions_introspection_expressions_test)
+versions_with_mode_test = unittest.make(_versions_with_mode_test)
 versions_ge_test = unittest.make(_versions_ge_test)
 versions_gt_test = unittest.make(_versions_gt_test)
 versions_le_test = unittest.make(_versions_le_test)
@@ -938,6 +1110,9 @@ def versions_test_suite(name = "versions_tests"):
         versions_named_components_test,
         versions_functions_test,
         versions_constants_test,
+        versions_introspection_test,
+        versions_introspection_expressions_test,
+        versions_with_mode_test,
         versions_ge_test,
         versions_gt_test,
         versions_le_test,
@@ -950,6 +1125,24 @@ def versions_test_suite(name = "versions_tests"):
         versions_check_all_requirements_test,
     )
     for case, operation, required, expected_error in [
+        ("bound_mode", "bound_mode", "", "Version mode must be"),
+        ("bound_local", "bound_local", "", "requires PEP 440 mode"),
+        ("bound_override", "bound_override", "", "Version mode must be"),
+        ("introspection_index", "introspection_index", "", "index must be an integer"),
+        ("introspection_release", "introspection_release", "", "non-empty, non-negative numeric release"),
+        ("introspection_build_mode", "introspection_build_mode", "", "use local()"),
+        ("introspection_local_mode", "introspection_local_mode", "", "requires PEP 440 mode"),
+        ("introspection_prefix", "introspection_prefix", "", "prefix must be a string"),
+        ("introspection_version", "introspection_version", "", "must not have leading zeros"),
+        ("bool_integer", "extended", "is_prerelease()==1", "bool operand"),
+        ("bool_string", "extended", 'is_prerelease()=="True"', "bool operand"),
+        ("bool_order", "extended", "is_prerelease()>False", "do not support"),
+        ("text_boolean", "extended", "prerelease()==True", "string operand"),
+        ("text_unquoted", "extended", "prerelease()==rc1", "arguments must be"),
+        ("text_order", "extended", 'prerelease()>"rc1"', "do not support"),
+        ("integer_negative", "extended", "component_count()==-1", "non-negative"),
+        ("integer_version", "extended", "component_count()==1.2", "arguments must be"),
+        ("expression_local_mode", "extended", 'local()==""', "requires PEP 440 mode"),
         ("single_component", "compatible", "1", "at least two release components"),
         ("empty_requirement", "compatible", "", "non-negative numeric release components"),
         ("nonnumeric_requirement", "compatible", "1.a", "non-negative numeric release components"),

@@ -1,3 +1,11 @@
+# 0.7.0
+
+- Add `versions.with_mode` for immutable API objects with a consistent caller-selected default
+  across every function. Explicit per-call modes still take precedence; original defaults remain.
+- Add component-count/index, prerelease-identification, and build/local-metadata helpers, including
+  typed boolean and text comparisons in requirement expressions. Expression calls inherit the
+  requirement checker's version mode, including nested calls.
+
 # 0.6.0
 
 - Document both public modules in `docs/versions.md` and `docs/paths.md`, including complete legacy,

@@ -82,6 +82,10 @@ def generate():
     cases = {
         "reference": "packaging==26.0",
         "normalized": normalized,
+        "introspection": [[raw, len(Version(raw).release),
+                           "" if Version(raw).pre is None else "".join(str(p) for p in Version(raw).pre),
+                           Version(raw).is_prerelease, Version(raw).local or ""]
+                          for raw, _ in normalized],
         "order_groups": [groups[version] for version in sorted(groups)],
         "clauses": [[raw, spec, Specifier(spec).contains(raw, prereleases=True)]
                     for spec in SPECIFIERS for raw in VERSIONS],

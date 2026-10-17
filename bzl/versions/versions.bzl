@@ -287,6 +287,66 @@ def _version_patch(version, *, mode = "semver"):
     """Returns the integer patch component, or zero when omitted."""
     return _named_component(version, "patch", mode = mode)
 
+def _introspection_release(version, mode):
+    parsed = _parse_version(version, mode = mode)
+    release = list(parsed.release) if mode == "pep440" else _release_components(parsed)
+    if not release or not all([type(part) == "int" and part >= 0 for part in release]):
+        fail("Version introspection requires a non-empty, non-negative numeric release.")
+    return release
+
+def _version_component_count(version, *, mode = "semver"):
+    """Returns the number of explicitly written numeric release components."""
+    return len(_introspection_release(version, mode))
+
+def _version_component(version, index, *, mode = "semver"):
+    """Returns a release integer; negative indices count from the end, missing indices give zero."""
+    if type(index) != "int":
+        fail("Version component index must be an integer.")
+    release = _introspection_release(version, mode)
+    if index < 0:
+        index += len(release)
+    return release[index] if index >= 0 and index < len(release) else 0
+
+def _version_prerelease(version, *, mode = "semver"):
+    """Returns the prerelease label without its leading delimiter; PEP 440 normalizes the pre segment."""
+    parsed = _parse_version(version, mode = mode)
+    if mode == "pep440":
+        return parsed.pre[0] + str(parsed.pre[1]) if parsed.pre != None else ""
+    start = _list_find(parsed, "-")
+    end = _list_find(parsed, "+", len(parsed))
+    return ".".join([str(part) for part in parsed[start + 1:end]]) if start != None and start < end else ""
+
+def _version_is_prerelease(version, *, mode = "semver"):
+    """Whether a version has a prerelease segment, or a PEP 440 development segment."""
+    parsed = _parse_version(version, mode = mode)
+    if mode == "pep440":
+        return parsed.pre != None or parsed.dev != None
+    return "-" in parsed[:_list_find(parsed, "+", len(parsed))]
+
+def _version_has_prerelease_prefix(version, prefix, *, mode = "semver"):
+    """Tests a case-sensitive textual prefix of the first prerelease identifier."""
+    if type(prefix) != "string":
+        fail("Prerelease prefix must be a string.")
+    pre = _version_prerelease(version, mode = mode)
+    return bool(pre) and pre.split(".", 1)[0].startswith(prefix)
+
+def _version_build(version, *, mode = "semver"):
+    """Returns build metadata; SemVer string inputs preserve spelling, including numeric zeros."""
+    parsed = _parse_version(version, mode = mode)
+    if mode == "pep440":
+        fail("PEP 440 uses local labels; use local() instead of build().")
+    if mode == "semver" and type(version) == "string":
+        return version.split("+", 1)[1] if "+" in version else ""
+    start = _list_find(parsed, "+")
+    return ".".join([str(part) for part in parsed[start + 1:]]) if start != None else ""
+
+def _version_local(version, *, mode = "pep440"):
+    """Returns a normalized PEP 440 local label; unsupported in legacy and SemVer modes."""
+    _check_mode(mode)
+    if mode != "pep440":
+        fail("local() requires PEP 440 mode; use build() for SemVer metadata.")
+    return ".".join([str(part) for part in pep440.parse(version).local])
+
 def _constant_bindings(constants):
     if constants == None:
         return {}
@@ -299,11 +359,18 @@ def _constant_bindings(constants):
 
 def _expression_value(nodes, version, mode, constants):
     functions = {
+        "build": _version_build,
+        "component": _version_component,
+        "component_count": _version_component_count,
         "components": _version_components,
+        "has_prerelease_prefix": _version_has_prerelease_prefix,
+        "is_prerelease": _version_is_prerelease,
+        "local": _version_local,
         "major": _version_major,
         "minor": _version_minor,
         "patch": _version_patch,
         "prefix": _version_prefix,
+        "prerelease": _version_prerelease,
     }
     results = {}
     for index in range(len(nodes) - 1, -1, -1):
@@ -316,7 +383,8 @@ def _expression_value(nodes, version, mode, constants):
         args = [results[arg.node] if hasattr(arg, "node") else arg.value for arg in node.args]
         kwargs = {key: results[arg.node] if hasattr(arg, "node") else arg.value for key, arg in node.kwargs.items()}
         if "version" not in kwargs:
-            if node.function == "prefix" and len(args) == 1 and "count" not in kwargs:
+            implied_argument = {"component": "index", "has_prerelease_prefix": "prefix", "prefix": "count"}.get(node.function)
+            if implied_argument and len(args) == 1 and implied_argument not in kwargs:
                 args = [version] + args
             elif not args:
                 kwargs["version"] = version
@@ -598,6 +666,14 @@ def _check_one_requirement_struct(version, requirement, *, skip_build = True, co
         version = _expression_value(requirement.expression, version, mode, constants)
     elif hasattr(requirement, "component"):
         version = _named_component(version, requirement.component, mode = mode)
+    if getattr(requirement, "result_type", None):
+        if type(version) != requirement.result_type:
+            fail("Version function returned an unexpected result type.")
+        if requirement.op == "==":
+            return version == requirement.version
+        if requirement.op == "!=":
+            return version != requirement.version
+        return _version_compare(version, requirement.op, requirement.version, mode = mode)
     return _version_compare(
         version,
         requirement.op,
@@ -649,6 +725,15 @@ def _parse_split_requirement(req, *, mode = "legacy"):
             fields["component"] = nodes[0].function
         else:
             fields["expression"] = nodes
+            result_type = expression.result_type(getattr(nodes[0], "function", None))
+            if result_type:
+                fields["result_type"] = result_type
+                if op not in (_COMPONENT_OPERATORS if result_type == "int" else ["==", "!="]):
+                    fail("{} expression results do not support '{}' comparisons.".format(result_type, op))
+                literal = expression.literal(value)
+                if type(literal) != result_type or (result_type == "int" and literal < 0):
+                    fail("{} expression results require a {} operand{}.".format(result_type, result_type, " (non-negative)" if result_type == "int" else ""))
+                return struct(op = op, version = literal, **fields)
     if "component" in fields:
         if op not in _COMPONENT_OPERATORS:
             fail("Named version component '{}' requires ==, !=, <, <=, >, or >=.".format(fields["component"]))
@@ -673,24 +758,41 @@ def _parse_requirements(requirements, *, mode = "legacy"):
         for req in expression.clauses(requirements)
     ]
 
-versions = struct(
-    parse = _parse_version,
-    components = _version_components,
-    prefix = _version_prefix,
-    major = _version_major,
-    minor = _version_minor,
-    patch = _version_patch,
-    compatible = _version_compatible,
-    matches = _version_matches,
-    ge = _version_ge,
-    gt = _version_gt,
-    le = _version_le,
-    lt = _version_lt,
-    eq = _version_eq,
-    ne = _version_ne,
-    cmp = _version_cmp,
-    compare = _version_compare,
-    check_one_requirement = _check_one_requirement,
-    check_all_requirements = _check_all_requirements,
-    parse_requirements = _parse_requirements,
-)
+def _bind_mode(function, mode):
+    return lambda *args, **kwargs: function(*args, **dict({"mode": mode}, **kwargs))
+
+def _with_mode(mode):
+    """Returns an immutable versions API with one default mode; explicit call modes take precedence."""
+    _check_mode(mode)
+    return struct(with_mode = _with_mode, **{name: _bind_mode(function, mode) for name, function in _API_FUNCTIONS.items()})
+
+_API_FUNCTIONS = {
+    "build": _version_build,
+    "check_all_requirements": _check_all_requirements,
+    "check_one_requirement": _check_one_requirement,
+    "cmp": _version_cmp,
+    "compare": _version_compare,
+    "compatible": _version_compatible,
+    "component": _version_component,
+    "component_count": _version_component_count,
+    "components": _version_components,
+    "eq": _version_eq,
+    "ge": _version_ge,
+    "gt": _version_gt,
+    "has_prerelease_prefix": _version_has_prerelease_prefix,
+    "is_prerelease": _version_is_prerelease,
+    "le": _version_le,
+    "local": _version_local,
+    "lt": _version_lt,
+    "major": _version_major,
+    "matches": _version_matches,
+    "minor": _version_minor,
+    "ne": _version_ne,
+    "parse": _parse_version,
+    "parse_requirements": _parse_requirements,
+    "patch": _version_patch,
+    "prefix": _version_prefix,
+    "prerelease": _version_prerelease,
+}
+
+versions = struct(with_mode = _with_mode, **_API_FUNCTIONS)

@@ -14,7 +14,30 @@
 
 """Restricted version-function expressions; no arbitrary Starlark evaluation."""
 
-_FUNCTIONS = ["major", "minor", "patch", "prefix", "components"]
+_FUNCTIONS = [
+    "major",
+    "minor",
+    "patch",
+    "prefix",
+    "components",
+    "component_count",
+    "component",
+    "prerelease",
+    "is_prerelease",
+    "has_prerelease_prefix",
+    "build",
+    "local",
+]
+
+_RESULT_TYPES = {
+    "build": "string",
+    "component": "int",
+    "component_count": "int",
+    "has_prerelease_prefix": "bool",
+    "is_prerelease": "bool",
+    "local": "string",
+    "prerelease": "string",
+}
 
 def _identifier(text):
     if type(text) != "string" or not text or text in ["True", "False", "None"]:
@@ -28,12 +51,24 @@ def _top_level(text, *, clauses = False):
     escaped = False
     positions = []
     operand = False
+    literal_operand = False
+    clause_start = 0
     for index in range(len(text)):
         char = text[index]
         if clauses and operand:
-            if char == ",":
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = ""
+            elif literal_operand and char in ["'", '"']:
+                quote = char
+            elif char == ",":
                 positions.append(index)
                 operand = False
+                clause_start = index + 1
             continue
         if quote:
             if escaped:
@@ -55,6 +90,12 @@ def _top_level(text, *, clauses = False):
             positions.append(index)
             if clauses and char in "=!<>~":
                 operand = True
+
+                # New text-valued helpers compare quoted literals. Preserve the
+                # historical opaque RHS grammar for version/=== operands.
+                left = text[clause_start:index].strip()
+                opening = left.find("(")
+                literal_operand = opening > 0 and _RESULT_TYPES.get(left[:opening].strip()) == "string"
     if quote or depth:
         fail("Unbalanced version expression: '{}'".format(text))
     return positions
@@ -148,4 +189,11 @@ def _parse(text):
         nodes.append(struct(function = name, args = args, kwargs = kwargs))
     return nodes
 
-expression = struct(identifier = _identifier, parse = _parse, clauses = lambda text: _split(text, ",", clauses = True), comparison = _comparison)
+expression = struct(
+    identifier = _identifier,
+    parse = _parse,
+    clauses = lambda text: _split(text, ",", clauses = True),
+    comparison = _comparison,
+    literal = _literal,
+    result_type = lambda name: _RESULT_TYPES.get(name),
+)
