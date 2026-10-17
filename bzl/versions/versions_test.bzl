@@ -14,7 +14,7 @@
 
 """Unit tests for versions.bzl."""
 
-load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//bzl/versions:versions.bzl", "versions")
 
 def _assert_eq(env, result, expected, msg = None):
@@ -435,7 +435,248 @@ def _versions_check_all_requirements_test(ctx):
 
     return unittest.end(env)
 
+def _versions_semver_precedence_test(ctx):
+    env = unittest.begin(ctx)
+
+    # The complete ascending example from SemVer 2.0.0, section 11.
+    ordered = [
+        "1.0.0-alpha",
+        "1.0.0-alpha.1",
+        "1.0.0-alpha.beta",
+        "1.0.0-beta",
+        "1.0.0-beta.2",
+        "1.0.0-beta.11",
+        "1.0.0-rc.1",
+        "1.0.0",
+    ]
+    for left_index, left in enumerate(ordered):
+        for right_index, right in enumerate(ordered):
+            expected = int(left_index > right_index) - int(left_index < right_index)
+            _test_cmp(env, left, right, expected, mode = "semver")
+            for op, result in [("==", expected == 0), ("!=", expected != 0), ("<", expected < 0), ("<=", expected <= 0), (">", expected > 0), (">=", expected >= 0)]:
+                _test_op(env, left, op, right, result, mode = "semver")
+    for left, right, expected in [
+        ("1.2", "1.2.0", 0),
+        ("1.2", "1.2.0.0", 0),
+        ("1.2-rc.1", "1.2.0-rc.1", 0),
+        ("1.2-rc1", "1.2.0-rc.1", 1),
+        ("1.2-rc10", "1.2-rc2", -1),
+        ("1.2-A", "1.2-a", -1),
+        ("1.2--", "1.2-0", 1),
+        ("1.2-0", "1.2", -1),
+        ("1.2+build.1", "1.2.0+build.2", 0),
+    ]:
+        _test_cmp(env, left, right, expected, mode = "semver")
+        _test_cmp(env, right, left, -expected, mode = "semver")
+        _assert_eq(env, versions.check_one_requirement(left, "==" + right, mode = "semver"), expected == 0)
+        _assert_eq(env, versions.check_all_requirements(left, versions.parse_requirements("==" + right, mode = "semver"), mode = "semver"), expected == 0)
+    _assert_eq(env, versions.parse("1-rc.1+build.2", mode = "semver"), [1, "-", "rc", 1, "+", "build", 2])
+    return unittest.end(env)
+
+def _versions_modes_test(ctx):
+    env = unittest.begin(ctx)
+    for mode, equal, parsed, lexical in [
+        ("legacy", False, [1, 2, 3, "-", "rc", 1], False),
+        ("semver", True, [1, 2, 3, "-", "rc1"], True),
+    ]:
+        _assert_eq(env, versions.eq("1.2", "1.2.0", mode = mode), equal)
+        _assert_eq(env, versions.ne("1.2", "1.2.0", mode = mode), not equal)
+        _assert_eq(env, versions.parse("1.2.3-rc1", mode = mode), parsed)
+        _assert_eq(env, versions.lt("1.2.3-rc10", "1.2.3-rc2", mode = mode), lexical)
+        _assert_eq(env, versions.matches("1.2", "1.2.0", mode = mode), equal)
+        _assert_eq(env, versions.compatible("1.2", "1.2.0", mode = mode), equal)
+        _assert_eq(env, versions.check_one_requirement("1.2", "==1.2.0", mode = mode), equal)
+        _assert_eq(env, versions.check_all_requirements("1.2", "==1.2.0", mode = mode), equal)
+        _assert_eq(env, versions.check_all_requirements("1.2", ["==1.2.0"], mode = mode), equal)
+        _assert_eq(env, versions.check_all_requirements("1.2", versions.parse_requirements("==1.2.0", mode = mode), mode = mode), equal)
+        _assert_eq(env, versions.parse_requirements("~=1.2.3-rc1", mode = mode), [struct(op = "~=", version = parsed)])
+    _assert_eq(env, versions.check_all_requirements("1.2.3", versions.parse_requirements("==1.2.*,!=1.2.4", mode = "semver"), mode = "semver"), True)
+    _assert_eq(env, versions.parse_requirements(" ~= 1.4.5-rc1 , != 1.4.6 ", mode = "semver"), [
+        struct(op = "~=", version = [1, 4, 5, "-", "rc1"]),
+        struct(op = "!=", version = [1, 4, 6]),
+    ])
+    return unittest.end(env)
+
+def _versions_components_test(ctx):
+    env = unittest.begin(ctx)
+    for version, count, expected in [
+        ("1.2.3.4", 2, "1.2"),
+        ("1.2", 4, "1.2"),
+        ("1.2.3-rc.1+build.7", 2, "1.2"),
+        ("1.2.3-rc.1+build.7", 5, "1.2.3"),
+        ("1.2.3", 0, ""),
+        ("", 2, ""),
+        (1, 3, "1"),
+        ([1, 2, 3], 2, "1.2"),
+        ((1, 2, 3), 2, "1.2"),
+    ]:
+        _assert_eq(env, versions.prefix(version, count), expected, "prefix({}, {})".format(version, count))
+    for version, start, end, pad, expected in [
+        ("1.2.3.4", 0, 2, False, "1.2"),
+        ("1.2.3.4", 1, 3, False, "2.3"),
+        ("1.2", 0, 4, False, "1.2"),
+        ("1.2", 0, 4, True, "1.2.0.0"),
+        ("1.2.3", 1, 4, True, "2.3.0"),
+        ("1.2", 3, 5, True, "0.0"),
+        ("1.2", 3, 5, False, ""),
+        ("1.2.3", 0, None, True, "1.2.3"),
+        ("1.2.3", -2, None, False, "2.3"),
+        ("1.2.3", 0, -1, False, "1.2"),
+        ("1.2", -1, 4, True, "2.0.0"),
+        ("1.2", -9, 1, False, "1"),
+        ("1.2", 2, 1, True, ""),
+        ("1.2.3-rc.1+build.7", 1, 4, True, "2.3.0"),
+    ]:
+        _assert_eq(
+            env,
+            versions.components(version, start = start, end = end, pad = pad),
+            expected,
+            "components({}, start={}, end={}, pad={})".format(version, start, end, pad),
+        )
+    return unittest.end(env)
+
+def _versions_compatible_test(ctx):
+    env = unittest.begin(ctx)
+    for candidate, required, expected in [
+        ("1.4.5", "1.4.0", True),
+        ("1.5.0", "1.4.0", False),
+        ("1.9.0", "1.4", True),
+        ("2.0.0", "1.4", False),
+        ("1.4.4", "1.4.5", False),
+        ("1.4.5", "1.4.5", True),
+        ("1.4.99", "1.4.5", True),
+        ("1.4.5.9", "1.4.5.0", True),
+        ("1.4.6", "1.4.5.0", False),
+        ("1.4.6-rc.1", "1.4.5.0", False),
+        ("0.9.0", "0.4", True),
+        ("1.0.0", "0.4", False),
+        ("0.5.0", "0.4.0", False),
+        ("1.4", "1.4.0", True),
+        ("1.4.0", "1.4", True),
+        (1, "1.0", True),
+        ("1.4.0.0", "1.4.0", True),
+        ("1.4.5+candidate", "1.4.5+required", True),
+        ("1.4.5-rc.1", "1.4.5", False),
+        ("1.4.5", "1.4.5-rc.1", True),
+        ("1.4.5-rc.2", "1.4.5-rc.1", True),
+        ("1.4.5-rc.0", "1.4.5-rc.1", False),
+        ("1.4.6-rc.1", "1.4.5", True),
+        ("1.5.0-rc.1", "1.4.5", False),
+        # SemVer compares alphanumeric identifiers lexically, not by suffix number.
+        ("1.4.5-rc1", "1.4.5-rc.1", True),
+        ("1.4.5-rc.1", "1.4.5-rc1", False),
+        ("1.4.5-rc10", "1.4.5-rc2", False),
+        ("1.4.5-alpha", "1.4.5-0", True),
+        ("1.4.5--", "1.4.5-0", True),
+        ("1.4.5-0", "1.4.5--", False),
+        ("1.4.5-alpha.1", "1.4.5-alpha", True),
+        ("1.4.5-alpha", "1.4.5-alpha.1", False),
+        ([1, 4, 5], [1, 4, 0], True),
+        ((1, 5, 0), (1, 4, 0), False),
+    ]:
+        _assert_eq(env, versions.compatible(candidate, required), expected, "{} ~= {}".format(candidate, required))
+        _test_op(env, candidate, "~=", required, expected, mode = "semver")
+    _assert_eq(env, versions.compatible("1.4.5+build1", "1.4.5+build2", skip_build = False), False)
+    _assert_eq(env, versions.check_one_requirement("1.4.5-rc.1", "~=1.4.5-rc1", mode = "semver"), False)
+    _assert_eq(env, versions.check_all_requirements("1.4.5", "~=1.4,!=1.4.6"), True)
+    _assert_eq(env, versions.check_all_requirements("1.4.6", "~=1.4,!=1.4.6"), False)
+    _assert_eq(env, versions.check_all_requirements("1.4.5", versions.parse_requirements("~=1.4,!=1.4.6")), True)
+    _assert_eq(env, versions.check_all_requirements("1.4.5-rc.1", versions.parse_requirements("~=1.4.5-rc1", mode = "semver"), mode = "semver"), False)
+    return unittest.end(env)
+
+def _versions_matches_test(ctx):
+    env = unittest.begin(ctx)
+    for candidate, pattern, expected in [
+        ("1.2.3", "1.2.*", True),
+        ("1.20.3", "1.2.*", False),
+        ("1.3.0", "1.2.*", False),
+        ("1.2", "1.2.*", True),
+        ("1.2.0.0", "1.2.*", True),
+        ("1.2.3.4", "1.2.3.*", True),
+        ("1.2.4", "1.2.3.*", False),
+        ("1", "1.0.*", True),
+        ("1", "1.0.0.*", True),
+        ("1", "1.1.*", False),
+        ("0.9.0", "0.*", True),
+        ("1.2.3-rc.1", "1.2.*", True),
+        ("1.2.3-rc1+build.4", "1.2.*", True),
+        ("1.2.3+build.4", "1.2.3.*", True),
+        ([1, 2, 3], [1, 2, "*"], True),
+        ((1, 2, 3), (1, 2, "*"), True),
+    ]:
+        _assert_eq(env, versions.matches(candidate, pattern), expected, "matches({}, {})".format(candidate, pattern))
+        _assert_eq(env, versions.compare(candidate, "==", pattern), expected)
+        _assert_eq(env, versions.compare(candidate, "!=", pattern), not expected)
+        for requirement in ["==1.2.*", "!=1.2.*", "1.2.*"]:
+            _assert_eq(
+                env,
+                versions.check_all_requirements(candidate, versions.parse_requirements(requirement)),
+                versions.check_one_requirement(candidate, requirement),
+            )
+    for candidate, pattern, expected in [
+        ("1.2", "1.2.0", True),
+        ("1.2.0.0", "1.2", True),
+        ("1.2.1", "1.2", False),
+        ("1.2.0-rc.1", "1.2-rc.1", True),
+        ("1.2.0-rc1", "1.2.0-rc.1", False),
+        ("1.2.0-rc.1", "1.2.0", False),
+        ("1.2.0", "1.2.0-rc.1", False),
+        ("1.2.0+build.1", "1.2+build.2", True),
+        ("1.2.0--", "1.2.0--", True),
+        (1, "1.0", True),
+    ]:
+        _assert_eq(env, versions.matches(candidate, pattern), expected, "matches({}, {})".format(candidate, pattern))
+    _assert_eq(env, versions.matches("1.2+one", "1.2+two", skip_build = False), False)
+    _assert_eq(env, versions.matches("1.2+one", "1.2.*", skip_build = False), True)
+    _assert_eq(env, versions.check_one_requirement("1.2.3", " == 1.2.* "), True)
+    _assert_eq(env, versions.check_all_requirements("1.2.3", "==1.2.*,!=1.2.4"), True)
+    _assert_eq(env, versions.check_all_requirements("1.2.3", "==1.2.*,!=1.2.3.*"), False)
+    _assert_eq(env, versions.parse_requirements("==1.2.*,!=1.3.*"), [
+        struct(op = "==", version = [1, 2, "*"]),
+        struct(op = "!=", version = [1, 3, "*"]),
+    ])
+    return unittest.end(env)
+
+def _invalid_version_operation_impl(ctx):
+    if ctx.attr.operation == "compatible":
+        versions.compatible("1.4.5", ctx.attr.required)
+    elif ctx.attr.operation == "mode":
+        versions.parse("1.2.3", mode = "unknown")
+    elif ctx.attr.operation == "matches":
+        versions.matches("1.2.3", ctx.attr.required)
+    elif ctx.attr.operation == "compare":
+        versions.compare("1.2.3", ">=", ctx.attr.required)
+    elif ctx.attr.operation == "prefix":
+        versions.prefix("1.2", -1)
+    else:
+        versions.components("1.2", start = "1")
+    return []
+
+_invalid_version_operation = rule(
+    implementation = _invalid_version_operation_impl,
+    attrs = {
+        "operation": attr.string(),
+        "required": attr.string(),
+    },
+)
+
+def _invalid_version_operation_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, ctx.attr.expected_error)
+    return analysistest.end(env)
+
+_invalid_version_operation_test = analysistest.make(
+    _invalid_version_operation_test_impl,
+    expect_failure = True,
+    attrs = {"expected_error": attr.string()},
+)
+
 versions_parse_test = unittest.make(_versions_parse_test)
+versions_components_test = unittest.make(_versions_components_test)
+versions_compatible_test = unittest.make(_versions_compatible_test)
+versions_matches_test = unittest.make(_versions_matches_test)
+versions_semver_precedence_test = unittest.make(_versions_semver_precedence_test)
+versions_modes_test = unittest.make(_versions_modes_test)
 versions_ge_test = unittest.make(_versions_ge_test)
 versions_gt_test = unittest.make(_versions_gt_test)
 versions_le_test = unittest.make(_versions_le_test)
@@ -447,11 +688,20 @@ versions_parse_requirements_test = unittest.make(_versions_parse_requirements_te
 versions_check_one_requirement_test = unittest.make(_versions_check_one_requirement_test)
 versions_check_all_requirements_test = unittest.make(_versions_check_all_requirements_test)
 
-def versions_test_suite():
-    """Creates the test targets and test suite for paths.bzl tests."""
+def versions_test_suite(name = "versions_tests"):
+    """Creates version test targets, including invalid-input analysis tests.
+
+    Args:
+        name: Name of the unit test suite and prefix for invalid-input fixtures.
+    """
     unittest.suite(
-        "versions_tests",
+        name,
         versions_parse_test,
+        versions_components_test,
+        versions_compatible_test,
+        versions_matches_test,
+        versions_semver_precedence_test,
+        versions_modes_test,
         versions_ge_test,
         versions_gt_test,
         versions_le_test,
@@ -463,3 +713,37 @@ def versions_test_suite():
         versions_check_one_requirement_test,
         versions_check_all_requirements_test,
     )
+    for case, operation, required, expected_error in [
+        ("single_component", "compatible", "1", "at least two release components"),
+        ("empty_requirement", "compatible", "", "non-negative numeric release components"),
+        ("nonnumeric_requirement", "compatible", "1.a", "non-negative numeric release components"),
+        ("wildcard_only", "matches", "*", "single trailing '.*'"),
+        ("embedded_wildcard", "matches", "1.*.3", "single trailing '.*'"),
+        ("partial_wildcard", "matches", "1.2*", "single trailing '.*'"),
+        ("multiple_wildcards", "matches", "1.*.*", "single trailing '.*'"),
+        ("prerelease_wildcard", "matches", "1.2-rc.*", "single trailing '.*'"),
+        ("build_wildcard", "matches", "1.2+build.*", "single trailing '.*'"),
+        ("wildcard_build", "matches", "1.2.*+build", "single trailing '.*'"),
+        ("ordered_wildcard", "compare", "1.2.*", "only support '==' and '!='"),
+        ("compatible_wildcard", "compatible", "1.2.*", "non-negative numeric release components"),
+        ("empty_prerelease", "matches", "1.2.3-", "non-empty SemVer identifiers"),
+        ("empty_build", "matches", "1.2.3+", "non-empty SemVer identifiers"),
+        ("invalid_prerelease", "matches", "1.2.3-rc_1", "non-empty SemVer identifiers"),
+        ("prerelease_leading_zero", "matches", "1.2.3-01", "must not have leading zeros"),
+        ("release_leading_zero", "matches", "01.2.3", "must not have leading zeros"),
+        ("unknown_mode", "mode", "", "Version mode must be"),
+        ("negative_prefix", "prefix", "", "non-negative integer"),
+        ("invalid_index", "components", "", "Component indices must be integers"),
+    ]:
+        fixture = name + "_" + case
+        _invalid_version_operation(
+            name = fixture,
+            operation = operation,
+            required = required,
+            tags = ["manual"],
+        )
+        _invalid_version_operation_test(
+            name = fixture + "_test",
+            target_under_test = ":" + fixture,
+            expected_error = expected_error,
+        )
