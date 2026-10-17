@@ -25,6 +25,12 @@ versions.prefix("23.2.1", 2)                           # "23.2"
 versions.components("23.2", end=4, pad=True)           # "23.2.0.0"
 versions.compatible("1.4.8", "1.4.5")                  # True
 versions.matches("1.2.3", "1.2.*")                     # True
+versions.component_count("1.2.0.0-rc1")               # 4
+versions.component("1.2.3.4", -1)                     # 4
+versions.prerelease("1.2.3-rc1")                       # "rc1"
+versions.is_prerelease("1.2.3-rc1")                    # True
+versions.build("1.2.3+001.linux")                     # "001.linux"
+versions.local("1.2+Ubuntu-01")                       # "ubuntu.1"
 versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode="semver")  # True
 versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")      # True
 ```
@@ -36,7 +42,8 @@ versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")      
 | `pep440` | Python version normalization and specifiers, including epochs, pre/post/dev releases and local labels          |
 
 Existing parsing/comparison APIs default to `legacy`; component helpers, `compatible` and `matches`
-default to `semver`. Pass a mode explicitly when sharing parsed values or requirements. In Python
+default to `semver`; Python-only `local` defaults to `pep440`. Pass a mode explicitly when sharing
+parsed values or requirements. In Python
 mode, direct version precedence and requirement clauses have different rules: `1.0.post1` sorts
 after `1.0`, but does not satisfy `>1.0`.
 
@@ -45,6 +52,23 @@ extensions. `~=1.2` permits compatible 1.x releases from 1.2; `~~=1.2.*` selects
 a lower bound at 1.2. `==1.2.*` is prefix matching without that extra lower bound. Function calls require parentheses. Bare identifiers read a caller-supplied `constants` dictionary;
 `major==23` works when that dictionary binds `major`, while `major()==23` always calls the library
 helper. Functions accept an implied candidate, such as `components(start=1,end=3)==2.1`.
+Introspection expressions also support typed results: `is_prerelease()==True`,
+`has_prerelease_prefix("rc")==True`, and `prerelease()=="rc1"`. Every nested call inherits the
+checker's mode, regardless of the standalone helper's default. Python mode treats development
+releases as prereleases; prerelease extraction returns only the Python pre segment.
+
+Clients can choose a consistent default for the complete API without changing global state:
+
+```starlark
+semver = versions.with_mode("semver")
+semver.eq("1.2", "1.2.0")                             # True
+semver.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc1"')  # True
+semver.eq("1.2", "1.2.0", mode="legacy")               # False: explicit call override
+```
+
+The returned immutable object preserves every function and option; explicit per-call modes take
+precedence, and nested expression calls inherit the checker's effective mode. The original
+`versions` object retains its historical defaults.
 
 ```starlark
 candidate = "23.2.1"

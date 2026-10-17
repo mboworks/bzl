@@ -14,6 +14,7 @@ versions or requirements between calls.
 
 | Function                                                                                           | Result                                                | Default mode |
 | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------ |
+| `with_mode(mode)`                                                                                  | Immutable API object with one default mode            | Explicit     |
 | `parse(version, *, skip_build=False, error="Cannot parse version.", mode="legacy")`                | Component list or PEP 440 record                      | `legacy`     |
 | `cmp(lhs, rhs, *, skip_build=True, mode="legacy")`                                                 | `-1`, `0`, or `1`                                     | `legacy`     |
 | `eq`, `ne`, `lt`, `le`, `gt`, `ge` with the same arguments as `cmp`                                | Boolean precedence comparison                         | `legacy`     |
@@ -24,17 +25,56 @@ versions or requirements between calls.
 | `prefix(version, count, *, mode="semver")`                                                         | First at most `count` release components, as a string | `semver`     |
 | `components(version, *, start=0, end=None, pad=False, mode="semver")`                              | Release slice, as a string                            | `semver`     |
 | `major`, `minor`, `patch` with `(version, *, mode="semver")`                                       | Individual integer component                          | `semver`     |
+| `component_count(version, *, mode="semver")`                                                       | Number of explicitly written release components       | `semver`     |
+| `component(version, index, *, mode="semver")`                                                      | Integer at an index, or zero if missing               | `semver`     |
+| `prerelease(version, *, mode="semver")`                                                            | Prerelease label, or empty string                     | `semver`     |
+| `is_prerelease(version, *, mode="semver")`                                                         | Prerelease/development predicate                      | `semver`     |
+| `has_prerelease_prefix(version, prefix, *, mode="semver")`                                         | Textual prefix of first prerelease identifier         | `semver`     |
+| `build(version, *, mode="semver")`                                                                 | SemVer/legacy build metadata                          | `semver`     |
+| `local(version, *, mode="pep440")`                                                                 | Normalized Python local label                         | `pep440`     |
 | `compatible(version, required, *, skip_build=True, mode="semver")`                                 | Compatible-release predicate                          | `semver`     |
 | `matches(version, pattern, *, skip_build=True, mode="semver")`                                     | Exact or trailing-wildcard match                      | `semver`     |
 
 Existing parsing/comparison APIs default to historical behavior; the newer component/matching
-helpers default to SemVer mode. `eq`/`ne` mean equality/inequality, `lt`/`le` mean less than/at most,
+helpers default to SemVer mode, except Python-only `local`, which defaults to PEP 440.
+`eq`/`ne` mean equality/inequality, `lt`/`le` mean less than/at most,
 and `gt`/`ge` mean greater than/at least. `cmp` compares precedence directly. In PEP 440 mode,
 `compare` and the requirement APIs instead implement the additional rules of specifier clauses.
 
 An unknown mode fails. `error` supplies the historical unsupported-input diagnostic in legacy
 parsing, or the unsupported-comparator diagnostic in `compare`; malformed standards-mode input
 uses the relevant parser's diagnostic.
+
+### Consistent defaults with `with_mode`
+
+Create a mode-bound API object when a client consistently uses one scheme:
+
+```starlark
+semver = versions.with_mode("semver")
+python = versions.with_mode("pep440")
+
+semver.eq("1.2", "1.2.0")                           # True
+semver.prerelease("1.2.3-rc1")                       # "rc1"
+semver.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc1"')  # True
+python.is_prerelease("1.2.post1.dev2")               # True
+python.local("1.2+Ubuntu-01")                       # "ubuntu.1"
+```
+
+The returned immutable Starlark struct exposes the same functions as `versions`, including
+`with_mode`. Each wrapper supplies the selected mode only when the call omits it. All other
+arguments, return values and errors come from the original function. In particular keyword-only
+options such as `constants`, `skip_build`, slicing/padding, and diagnostics still work.
+
+An explicit per-call mode takes precedence: `semver.eq("1.2", "1.2.0", mode="legacy")` is false.
+This does not change the object or subsequent calls. `semver.with_mode("legacy")` creates another
+independent API. The original `versions` defaults remain unchanged; no global or ambient state is
+used. Unknown modes fail when the API is created or when an explicit override is evaluated.
+
+The bound mode applies to **every** method, even one with a different standalone default:
+`semver.local("1.2+abc")` fails because local labels require Python mode. Use the Python API or an
+explicit per-call override. Requirement checks forward their effective mode to every nested
+expression call. Expression syntax continues to inherit that mode rather than accepting its own
+`mode` keyword. Keep parsing and evaluation on the same API/mode when reusing parsed requirements.
 
 ## Mode comparison
 
@@ -291,9 +331,64 @@ can match `1.2.1-rc1`/`1.2.1rc1`. `==1.2.*` has no such lower bound. Negations c
 positive predicate but still fail on malformed input. Extended compatibility requires `.*`;
 compatible and ordered operands cannot use wildcards.
 
+## Version introspection
+
+`component_count` counts the numeric release components actually supplied, excluding every suffix
+and the PEP 440 epoch. It does not count comparison padding. `component` accepts an integer index;
+negative indices count from the original release's end. An out-of-range index returns zero in
+either direction. These helpers parse the complete version in the selected mode and require a
+non-empty numeric release, including in legacy mode.
+
+```starlark
+versions.component_count("1.2.0.0-rc.1")  # 4
+versions.component("1.2.3.4", -1)        # 4
+versions.component("1.2", 3)             # 0
+versions.component_count("1!1.2rc1", mode="pep440")  # 2
+```
+
+`prerelease` returns the label without its leading delimiter. SemVer preserves the identifier
+spelling and boundaries (`rc1` and `rc.1` differ); legacy returns its historical normalized
+identifiers (`rc1` becomes `rc.1`). PEP 440 returns the normalized pre segment, such as `a0`, `b2`,
+or `rc1`, excluding post/dev/local segments. A version without a pre segment returns `""`.
+
+`is_prerelease` is true for any SemVer/legacy prerelease segment. In PEP 440 it follows
+[Python's `Version.is_prerelease`](https://packaging.pypa.io/en/stable/version.html#packaging.version.Version.is_prerelease):
+a pre **or development** segment makes it true, including a development release of a postrelease.
+A postrelease alone and a local label alone do not. Consequently a Python development-only
+version can have `is_prerelease()==True` while `prerelease()==""`.
+
+`has_prerelease_prefix` tests a case-sensitive textual prefix of the first prerelease identifier,
+without interpreting phases: both `rc1` and `rc.1` match `"rc"`, but `"rc."` does not match the first
+identifier of `rc.1`. Normalization happens before matching in legacy/Python modes. An empty prefix
+matches any non-empty pre segment; it never matches a final or development-only Python release.
+No helper changes a resolver's separate prerelease-admission policy.
+
+```starlark
+versions.prerelease("1.2.3-rc.4")                    # "rc.4"
+versions.has_prerelease_prefix("1.2.3-rc1", "rc")     # True
+versions.is_prerelease("1.2.post1.dev2", mode="pep440")  # True
+versions.prerelease("1.2.post1.dev2", mode="pep440")  # ""
+```
+
+`build` returns the metadata after `+`, or `""` when absent. SemVer string inputs retain the exact
+metadata spelling, including case and leading zeros (`+001.X-y` gives `"001.X-y"`), after validating
+the complete version. Legacy input uses historical normalization, including numeric conversion.
+Parsed lists/tuples have already lost numeric spelling, so those inputs return their normalized
+identifiers. `build` rejects Python mode: Python local labels participate in precedence, whereas
+SemVer metadata does not.
+
+`local` accepts Python mode only, defaults to that mode, and returns the normalized local label:
+lowercase text, dot-separated identifiers and normalized numeric components. It returns `""`
+when absent. Neither helper includes `+` in its result.
+
+```starlark
+versions.build("1.2.3+001.X-y")           # "001.X-y"
+versions.local("1.2+Ubuntu-01_FOO")       # "ubuntu.1.foo"
+```
+
 ## Requirement expressions and constants
 
-Requirement clauses can use `major`, `minor`, `patch`, `prefix` and `components` as function calls on
+Requirement clauses can use the release-selection and introspection helpers as function calls on
 the left side. Omit the version to use the candidate. Calls require parentheses. Bare identifiers
 refer to caller-supplied constants, described below:
 
@@ -302,6 +397,9 @@ versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode="semver
 versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")  # True
 versions.check_one_requirement("23.2.1", "components(start=1,end=3)==2.1", mode="semver")  # True
 versions.check_one_requirement("23.2.1", "major(prefix(2))==23", mode="semver")  # True
+versions.check_one_requirement("23.2.1-rc1", "is_prerelease()==True", mode="semver")  # True
+versions.check_one_requirement("23.2.1-rc1", 'prerelease()=="rc1"', mode="semver")  # True
+versions.check_one_requirement("23.2.1-rc1", 'has_prerelease_prefix("rc")==True', mode="semver")  # True
 ```
 
 `major()==23,minor()>=2` compares the individual major and minor integers, not a release prefix.
@@ -314,10 +412,25 @@ Use `prefix("24.3.2", 2)` or `prefix(version="24.3.2", count=2)` for an explicit
 `components()` selects the candidate's complete release; `components("24.3.2", start=1, end=3)`
 uses an explicit version. `major("24.3.2")` and the corresponding minor/patch calls are also allowed.
 
+`component(3)` and `component(index=3)` use the candidate; pass a version and index explicitly to
+inspect another version. The same convention applies to `has_prerelease_prefix("rc")` or
+`has_prerelease_prefix(prefix="rc")`. `component_count`, `prerelease`, `is_prerelease`, `build`, and
+`local` take no positional arguments when inspecting the candidate.
+
+The new integer introspection results require non-negative integer operands and ordered/exact
+comparators. Boolean results require literal `True`/`False` with `==`/`!=`; metadata/prerelease text
+requires a quoted string with `==`/`!=`. These comparisons use the returned value directly, without
+version normalization or SemVer's metadata-ignoring equality. For example, `build()=="001"` tests the
+exact metadata text. Existing release-valued helpers retain their version comparison semantics.
+Bare predicate calls without a comparator are not supported.
+
 Arguments can be integer/string/boolean/`None` literals, constant references, keyword arguments,
-and nested calls to these five functions. Version strings can use either quote style and ordinary quote/backslash or newline,
+and nested calls to these helpers. Version strings can use either quote style and ordinary quote/backslash or newline,
 carriage-return and tab escapes. Positional arguments precede keyword arguments. `mode` is inherited
-from the requirement check and cannot be overridden inside an expression. Arbitrary Starlark code,
+from the requirement check and cannot be overridden inside an expression. This applies at every
+nesting level and takes precedence over a helper's standalone default. In particular `local()`
+inside a SemVer expression fails rather than silently switching to Python parsing. Pass
+`mode="pep440"` to the checker when using Python-only helpers. Arbitrary Starlark code,
 attribute access, arithmetic and other functions are outside this grammar.
 
 Comma-separated clauses are ANDed. Commas inside calls or quoted literals do not split clauses.
@@ -372,7 +485,9 @@ version. The library neither recomputes values nor mutates the supplied dictiona
 `check_one_requirement` accepts one string or one record. `parse_requirements` returns records with
 `op` and `version`; zero-argument component-call records also carry `component`, and other expression clauses carry
 an opaque `expression` description, including unresolved constant references. Legacy/SemVer plain operands are parsed component lists, whereas
-Python plain operands retain strings for wildcard/arbitrary equality. Keep the same mode when
+Python plain operands retain strings for wildcard/arbitrary equality. New introspection expressions
+also carry `result_type`; their `version` field holds the typed integer, boolean or text operand.
+Keep the same mode when
 parsing and checking; treating a normalized legacy suffix list as SemVer cannot restore its spelling.
 
 Invalid modes, malformed standards-mode versions, unsupported comparators, malformed wildcard
