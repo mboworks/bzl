@@ -1,0 +1,664 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>docs/versions.md - bzl 0.7.0</title><style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 76rem; margin: auto; padding: 2rem; }
+a { color: light-dark(#075da8, #8cc8ff); }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #888; }
+pre { padding: 1rem; overflow: auto; background: light-dark(#f3f5f7, #20252b); }
+code { font-size: .9em; } img { max-width: 100%; }
+table { display: block; overflow: auto; border-collapse: collapse; }
+th, td { border: 1px solid #888; padding: .4rem .7rem; }
+blockquote { border-left: 4px solid #888; margin-left: 0; padding-left: 1rem; }
+</style><body><nav><a href="/bzl/site/tag/0.7.0/">Home</a><a href="/bzl/site/tag/0.7.0/documents.html">Documentation</a><a href="https://github.com/mboworks/bzl/releases/tag/0.7.0">Release &amp; downloads</a><a href="https://github.com/mboworks/bzl/tree/4248115c48f297ed8075e46aef6d84d81cbb4593">Source</a></nav><p>bzl 0.7.0</p><main><h1 dir="auto" id="versions">Versions</h1>
+<p dir="auto">Load the module's public <code class="notranslate">versions</code> struct:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-en">load</span>(<span class="pl-s">"@mboworks_bzl//bzl/versions:versions.bzl"</span>, <span class="pl-s">"versions"</span>)</pre></div>
+<p dir="auto">The module parses versions, compares precedence, selects release components and evaluates version<br>
+requirements. All operations are pure Starlark. Select a mode explicitly when exchanging parsed<br>
+versions or requirements between calls.</p>
+<h2 dir="auto" id="api-and-defaults">API and defaults</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Function</th>
+<th>Result</th>
+<th>Default mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">with_mode(mode)</code></td>
+<td>Immutable API object with one default mode</td>
+<td>Explicit</td>
+</tr>
+<tr>
+<td><code class="notranslate">parse(version, *, skip_build=False, error="Cannot parse version.", mode="legacy")</code></td>
+<td>Component list or PEP 440 record</td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">cmp(lhs, rhs, *, skip_build=True, mode="legacy")</code></td>
+<td><code class="notranslate">-1</code>, <code class="notranslate">0</code>, or <code class="notranslate">1</code></td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">eq</code>, <code class="notranslate">ne</code>, <code class="notranslate">lt</code>, <code class="notranslate">le</code>, <code class="notranslate">gt</code>, <code class="notranslate">ge</code> with the same arguments as <code class="notranslate">cmp</code></td>
+<td>Boolean precedence comparison</td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">compare(lhs, op, rhs, *, skip_build=True, error=None, mode="legacy")</code></td>
+<td>Boolean requirement-clause result</td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">check_one_requirement(version, requirement, *, skip_build=True, constants=None, mode="legacy")</code></td>
+<td>Boolean; string or parsed clause</td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">check_all_requirements(version, requirements, *, skip_build=True, constants=None, mode="legacy")</code></td>
+<td>Boolean; all clauses must hold</td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">parse_requirements(requirements, *, mode="legacy")</code></td>
+<td>List of parsed clause records</td>
+<td><code class="notranslate">legacy</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">prefix(version, count, *, mode="semver")</code></td>
+<td>First at most <code class="notranslate">count</code> release components, as a string</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">components(version, *, start=0, end=None, pad=False, mode="semver")</code></td>
+<td>Release slice, as a string</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">major</code>, <code class="notranslate">minor</code>, <code class="notranslate">patch</code> with <code class="notranslate">(version, *, mode="semver")</code></td>
+<td>Individual integer component</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">component_count(version, *, mode="semver")</code></td>
+<td>Number of explicitly written release components</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">component(version, index, *, mode="semver")</code></td>
+<td>Integer at an index, or zero if missing</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">prerelease(version, *, mode="semver")</code></td>
+<td>Prerelease label, or empty string</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">is_prerelease(version, *, mode="semver")</code></td>
+<td>Prerelease/development predicate</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">has_prerelease_prefix(version, prefix, *, mode="semver")</code></td>
+<td>Textual prefix of first prerelease identifier</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">build(version, *, mode="semver")</code></td>
+<td>SemVer/legacy build metadata</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">local(version, *, mode="pep440")</code></td>
+<td>Normalized Python local label</td>
+<td><code class="notranslate">pep440</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">compatible(version, required, *, skip_build=True, mode="semver")</code></td>
+<td>Compatible-release predicate</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">matches(version, pattern, *, skip_build=True, mode="semver")</code></td>
+<td>Exact or trailing-wildcard match</td>
+<td><code class="notranslate">semver</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Existing parsing/comparison APIs default to historical behavior; the newer component/matching<br>
+helpers default to SemVer mode, except Python-only <code class="notranslate">local</code>, which defaults to PEP 440.<br>
+<code class="notranslate">eq</code>/<code class="notranslate">ne</code> mean equality/inequality, <code class="notranslate">lt</code>/<code class="notranslate">le</code> mean less than/at most,<br>
+and <code class="notranslate">gt</code>/<code class="notranslate">ge</code> mean greater than/at least. <code class="notranslate">cmp</code> compares precedence directly. In PEP 440 mode,<br>
+<code class="notranslate">compare</code> and the requirement APIs instead implement the additional rules of specifier clauses.</p>
+<p dir="auto">An unknown mode fails. <code class="notranslate">error</code> supplies the historical unsupported-input diagnostic in legacy<br>
+parsing, or the unsupported-comparator diagnostic in <code class="notranslate">compare</code>; malformed standards-mode input<br>
+uses the relevant parser's diagnostic.</p>
+<h3 dir="auto" id="consistent-defaults-with-with_mode">Consistent defaults with <code class="notranslate">with_mode</code></h3>
+<p dir="auto">Create a mode-bound API object when a client consistently uses one scheme:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">semver</span> <span class="pl-c1">=</span> <span class="pl-s1">versions</span>.<span class="pl-c1">with_mode</span>(<span class="pl-s">"semver"</span>)
+<span class="pl-s1">python</span> <span class="pl-c1">=</span> <span class="pl-s1">versions</span>.<span class="pl-c1">with_mode</span>(<span class="pl-s">"pep440"</span>)
+
+<span class="pl-s1">semver</span>.<span class="pl-c1">eq</span>(<span class="pl-s">"1.2"</span>, <span class="pl-s">"1.2.0"</span>)                           <span class="pl-c"># True</span>
+<span class="pl-s1">semver</span>.<span class="pl-c1">prerelease</span>(<span class="pl-s">"1.2.3-rc1"</span>)                       <span class="pl-c"># "rc1"</span>
+<span class="pl-s1">semver</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"1.2.3-rc1"</span>, <span class="pl-s">'prerelease()=="rc1"'</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">python</span>.<span class="pl-c1">is_prerelease</span>(<span class="pl-s">"1.2.post1.dev2"</span>)               <span class="pl-c"># True</span>
+<span class="pl-s1">python</span>.<span class="pl-c1">local</span>(<span class="pl-s">"1.2+Ubuntu-01"</span>)                       <span class="pl-c"># "ubuntu.1"</span></pre></div>
+<p dir="auto">The returned immutable Starlark struct exposes the same functions as <code class="notranslate">versions</code>, including<br>
+<code class="notranslate">with_mode</code>. Each wrapper supplies the selected mode only when the call omits it. All other<br>
+arguments, return values and errors come from the original function. In particular keyword-only<br>
+options such as <code class="notranslate">constants</code>, <code class="notranslate">skip_build</code>, slicing/padding, and diagnostics still work.</p>
+<p dir="auto">An explicit per-call mode takes precedence: <code class="notranslate">semver.eq("1.2", "1.2.0", mode="legacy")</code> is false.<br>
+This does not change the object or subsequent calls. <code class="notranslate">semver.with_mode("legacy")</code> creates another<br>
+independent API. The original <code class="notranslate">versions</code> defaults remain unchanged; no global or ambient state is<br>
+used. Unknown modes fail when the API is created or when an explicit override is evaluated.</p>
+<p dir="auto">The bound mode applies to <strong>every</strong> method, even one with a different standalone default:<br>
+<code class="notranslate">semver.local("1.2+abc")</code> fails because local labels require Python mode. Use the Python API or an<br>
+explicit per-call override. Requirement checks forward their effective mode to every nested<br>
+expression call. Expression syntax continues to inherit that mode rather than accepting its own<br>
+<code class="notranslate">mode</code> keyword. Keep parsing and evaluation on the same API/mode when reusing parsed requirements.</p>
+<h2 dir="auto" id="mode-comparison">Mode comparison</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Property</th>
+<th><code class="notranslate">legacy</code></th>
+<th><code class="notranslate">semver</code></th>
+<th><code class="notranslate">pep440</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Purpose</td>
+<td>Preserve historical library behavior</td>
+<td>SemVer precedence, extended to variable-length releases</td>
+<td>Python package version syntax and specifier semantics</td>
+</tr>
+<tr>
+<td><code class="notranslate">1.2</code> compared with <code class="notranslate">1.2.0</code></td>
+<td>Less than</td>
+<td>Equal</td>
+<td>Equal</td>
+</tr>
+<tr>
+<td><code class="notranslate">rc1</code> versus <code class="notranslate">rc.1</code></td>
+<td>Normalized to the same suffix parts</td>
+<td>Distinct identifiers</td>
+<td>Normalized to the same RC spelling</td>
+</tr>
+<tr>
+<td><code class="notranslate">rc10</code> versus <code class="notranslate">rc2</code></td>
+<td>Numeric suffix order</td>
+<td>ASCII lexical order</td>
+<td>Numeric RC order</td>
+</tr>
+<tr>
+<td>Suffix case</td>
+<td>Case-sensitive</td>
+<td>Case-sensitive</td>
+<td>Normalized to lowercase</td>
+</tr>
+<tr>
+<td>Numeric leading zeros</td>
+<td>Accepted and converted to integers</td>
+<td>Rejected in raw release/prerelease strings</td>
+<td>Accepted and normalized</td>
+</tr>
+<tr>
+<td>Epochs, post/dev releases</td>
+<td>No Python interpretation</td>
+<td>No Python interpretation</td>
+<td>Supported</td>
+</tr>
+<tr>
+<td><code class="notranslate">+...</code> in direct comparison</td>
+<td>Ignored by default</td>
+<td>Ignored by default</td>
+<td>Local version participates in ordering</td>
+</tr>
+<tr>
+<td>Parse result</td>
+<td>Flat list</td>
+<td>Flat list</td>
+<td>Immutable record</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<h3 dir="auto" id="legacy">Legacy</h3>
+<p dir="auto">Legacy mode retains the original relaxed parser and comparator. Input may be a string, integer,<br>
+list, or tuple. Integers become one-component lists; tuples become lists. Digit-only parts become<br>
+integers. Other list components and relaxed string components can remain strings. An empty string<br>
+parses as <code class="notranslate">[]</code>; unsupported input types fail. Parsing does not pad missing release components.</p>
+<p dir="auto">The historical string parser first separates at most the first two dots and then looks for suffix<br>
+delimiters in the remaining part. Consequently, dotted suffixes on short release strings do not<br>
+have all the guarantees of three-component strings. Use explicit component lists or SemVer mode<br>
+when that distinction matters. Component-slicing helpers strip string suffixes before selecting<br>
+release parts.</p>
+<p dir="auto">Prerelease parts are separated at dots. A nonnumeric identifier ending in digits is further split<br>
+into its textual prefix and numeric suffix; a single hyphen immediately before the suffix is removed:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">parse</span>(<span class="pl-s">"1.2.3-rc1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)    <span class="pl-c"># [1, 2, 3, "-", "rc", 1]</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">parse</span>(<span class="pl-s">"1.2.3-rc.1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)   <span class="pl-c"># [1, 2, 3, "-", "rc", 1]</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">parse</span>(<span class="pl-s">"1.2.3-rc-1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)   <span class="pl-c"># [1, 2, 3, "-", "rc", 1]</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">parse</span>(<span class="pl-s">"1.2.3-alpha--2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)  <span class="pl-c"># [1, 2, 3, "-", "alpha-", 2]</span></pre></div>
+<p dir="auto">Build identifiers split only at dots. Numeric components compare numerically, numeric identifiers<br>
+precede text identifiers, and text compares lexically. Component count breaks ties after equal<br>
+available parts, with the historical special handling of prerelease/build delimiters:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">lt</span>(<span class="pl-s">"1.2"</span>, <span class="pl-s">"1.2.0"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)       <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">eq</span>(<span class="pl-s">"1.2.3-rc1"</span>, <span class="pl-s">"1.2.3-rc.1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">lt</span>(<span class="pl-s">"1.2.3-rc2"</span>, <span class="pl-s">"1.2.3-rc10"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"legacy"</span>)  <span class="pl-c"># True</span></pre></div>
+<p dir="auto">Legacy mode is a compatibility contract, not a SemVer validator or a Python version implementation.<br>
+New requirement operators and function expressions can use it, but whole-version lower bounds and<br>
+exact comparisons retain its component-count and suffix behavior.</p>
+<h3 dir="auto" id="semver">SemVer</h3>
+<p dir="auto">This mode follows <a href="https://semver.org/" rel="nofollow">Semantic Versioning 2.0.0</a> precedence and suffix syntax.<br>
+As a documented extension to SemVer's exactly three numeric release components, this library<br>
+accepts any nonempty number of non-negative numeric release components and pads shorter releases<br>
+with zeros for comparison. That padding follows the established<br>
+<a href="https://packaging.python.org/en/latest/specifications/version-specifiers/#final-releases" rel="nofollow">Python numeric-release convention</a>.<br>
+The parser retains the written number of release components.</p>
+<p dir="auto">Raw strings have the form <code class="notranslate">N(.N)*[-IDENT(.IDENT)*][+IDENT(.IDENT)*]</code>. Identifiers contain only ASCII<br>
+letters, digits, and hyphens and are nonempty. Release components and numeric prerelease identifiers<br>
+cannot have leading zeros. Build identifiers may have leading zeros. A leading <code class="notranslate">v</code>, surrounding<br>
+whitespace in a version value, Python epochs, and Python suffix spellings are not normalized.<br>
+Whitespace around requirement clauses and their operands is accepted by the requirement parser.</p>
+<p dir="auto">Input may also be an integer or a list/tuple of already parsed parts. Lists use a <code class="notranslate">"-"</code> element<br>
+before prerelease identifiers and a <code class="notranslate">"+"</code> before build identifiers. Numeric strings become integers.<br>
+Once an input is pre-parsed, the original spelling of an integer cannot be recovered; leading-zero<br>
+validation therefore applies to the raw string spelling.</p>
+<p dir="auto">Precedence compares numeric release components, then prerelease identifiers. A release without a<br>
+prerelease suffix follows the same release with one. Numeric prerelease identifiers compare<br>
+numerically and precede alphanumeric identifiers. Alphanumeric identifiers compare case-sensitively<br>
+in ASCII order; equal shared identifiers are followed by the shorter prerelease sequence first:</p>
+<pre lang="text" class="notranslate"><code class="notranslate">1.0.0-alpha &lt; 1.0.0-alpha.1 &lt; 1.0.0-alpha.beta &lt; 1.0.0-beta
+            &lt; 1.0.0-beta.2 &lt; 1.0.0-beta.11 &lt; 1.0.0-rc.1 &lt; 1.0.0
+</code></pre>
+<p dir="auto"><code class="notranslate">rc1</code> is one alphanumeric identifier; <code class="notranslate">rc.1</code> is two identifiers. Thus <code class="notranslate">rc10 &lt; rc2</code>, and <code class="notranslate">rc1</code> differs<br>
+from <code class="notranslate">rc.1</code>. Use <code class="notranslate">rc.10</code> when numeric RC ordering is intended.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">eq</span>(<span class="pl-s">"1.2"</span>, <span class="pl-s">"1.2.0.0"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)       <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">lt</span>(<span class="pl-s">"1.2.3-rc10"</span>, <span class="pl-s">"1.2.3-rc2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">parse</span>(<span class="pl-s">"1.2.3-rc1+build.7"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)
+<span class="pl-c"># [1, 2, 3, "-", "rc1", "+", "build", 7]</span></pre></div>
+<p dir="auto"><code class="notranslate">skip_build=True</code> ignores build metadata for comparison, as SemVer requires. Parsing defaults to<br>
+<code class="notranslate">skip_build=False</code>; comparison/matching defaults to <code class="notranslate">True</code>. <code class="notranslate">skip_build=False</code> on a comparison is<br>
+an explicit extension: build parts then break ties, using numeric-before-text component ordering.<br>
+SemVer mode validates suffix syntax even when metadata is ignored. Numeric identifiers in parsed<br>
+lists are integers, so parsing preserves semantics and component count rather than every original<br>
+character of metadata spelling.</p>
+<h3 dir="auto" id="python-pep-440">Python PEP 440</h3>
+<p dir="auto">This mode implements the <a href="https://packaging.python.org/en/latest/specifications/version-specifiers/" rel="nofollow">PyPA version scheme and version specifiers</a>.<br>
+The public version form is <code class="notranslate">[E!]N(.N)*[{a|b|rc}N][.postN][.devN]</code>, optionally followed by <code class="notranslate">+LOCAL</code>.<br>
+The epoch defaults to zero and is compared before release numbers; higher epochs sort later.<br>
+Releases compare with numeric zero padding while retaining their original component count in the<br>
+parsed value.</p>
+<p dir="auto">Parsing supports the specified normalizations:</p>
+<ul dir="auto">
+<li>surrounding whitespace and an optional leading <code class="notranslate">v</code> are removed;</li>
+<li>letters are lowercased and numeric leading zeros are removed;</li>
+<li><code class="notranslate">alpha</code> becomes <code class="notranslate">a</code>, <code class="notranslate">beta</code> becomes <code class="notranslate">b</code>, and <code class="notranslate">c</code>, <code class="notranslate">pre</code>, and <code class="notranslate">preview</code> become <code class="notranslate">rc</code>;</li>
+<li>optional <code class="notranslate">.</code>, <code class="notranslate">-</code>, and <code class="notranslate">_</code> separators around suffix labels/numbers are normalized;</li>
+<li>missing pre/post/dev numbers become zero;</li>
+<li><code class="notranslate">rev</code> and <code class="notranslate">r</code> post labels and the <code class="notranslate">-N</code> postrelease spelling become <code class="notranslate">.postN</code>;</li>
+<li>local labels split at <code class="notranslate">.</code>, <code class="notranslate">-</code>, or <code class="notranslate">_</code>, normalize to dots/lowercase, and convert numeric parts<br>
+to integers.</li>
+</ul>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">v</span> <span class="pl-c1">=</span> <span class="pl-s1">versions</span>.<span class="pl-c1">parse</span>(<span class="pl-s">" V01.002.000RC_03 "</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)
+<span class="pl-s1">v</span>.<span class="pl-c1">normalized</span>  <span class="pl-c"># "1.2.0rc3"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">eq</span>(<span class="pl-s">"1.2-rc1"</span>, <span class="pl-s">"1.2rc.1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">lt</span>(<span class="pl-s">"1.2rc2"</span>, <span class="pl-s">"1.2rc10"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)   <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">gt</span>(<span class="pl-s">"1!1.0"</span>, <span class="pl-s">"999.0"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)      <span class="pl-c"># True</span></pre></div>
+<p dir="auto"><code class="notranslate">parse</code> returns a record with these fields:</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">scheme</code></td>
+<td><code class="notranslate">"pep440"</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">epoch</code></td>
+<td>Non-negative integer, default <code class="notranslate">0</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">release</code></td>
+<td>Tuple of integer release components</td>
+</tr>
+<tr>
+<td><code class="notranslate">pre</code></td>
+<td><code class="notranslate">("a", n)</code>, <code class="notranslate">("b", n)</code>, <code class="notranslate">("rc", n)</code>, or <code class="notranslate">None</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">post</code></td>
+<td>Integer postrelease number or <code class="notranslate">None</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">dev</code></td>
+<td>Integer development-release number or <code class="notranslate">None</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">local</code></td>
+<td>Tuple of normalized integer/string local components; empty if absent</td>
+</tr>
+<tr>
+<td><code class="notranslate">normalized</code></td>
+<td>Canonical string, preserving release component count</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Version strings, integers, and these parsed records are accepted. Lists/tuples are joined with dots<br>
+before Python parsing; legacy/SemVer suffix-token lists are not reinterpreted as Python records.</p>
+<p dir="auto">Within a release, development releases precede prereleases; phases order <code class="notranslate">a &lt; b &lt; rc</code>; final<br>
+releases follow prereleases, and postreleases follow their corresponding release. Dev/pre/post<br>
+combinations retain the PEP 440 ordering. For the same public version, absence of a local label<br>
+precedes its presence. Local numeric components sort after lexical components; lexical components<br>
+compare case-insensitively after normalization, and a longer equal-prefix local label sorts later.<br>
+<code class="notranslate">skip_build</code> has no effect in PEP 440 mode: local versions have Python semantics rather than SemVer<br>
+metadata semantics.</p>
+<p dir="auto">Precedence helpers and requirement clauses intentionally differ:</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Call</th>
+<th>Result</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">gt("1.0.post1", "1.0", mode="pep440")</code></td>
+<td><code class="notranslate">True</code></td>
+<td>Direct version precedence</td>
+</tr>
+<tr>
+<td><code class="notranslate">compare("1.0.post1", "&gt;", "1.0", mode="pep440")</code></td>
+<td><code class="notranslate">False</code></td>
+<td><code class="notranslate">&gt;V</code> excludes postreleases of V unless V is a postrelease</td>
+</tr>
+<tr>
+<td><code class="notranslate">lt("1.0rc1", "1.0", mode="pep440")</code></td>
+<td><code class="notranslate">True</code></td>
+<td>Prerelease precedes final release</td>
+</tr>
+<tr>
+<td><code class="notranslate">compare("1.0rc1", "&lt;", "1.0", mode="pep440")</code></td>
+<td><code class="notranslate">False</code></td>
+<td><code class="notranslate">&lt;V</code> excludes prereleases of V unless V is a prerelease</td>
+</tr>
+<tr>
+<td><code class="notranslate">eq("1.0+local", "1.0", mode="pep440")</code></td>
+<td><code class="notranslate">False</code></td>
+<td>Direct comparison includes locals</td>
+</tr>
+<tr>
+<td><code class="notranslate">matches("1.0+local", "1.0", mode="pep440")</code></td>
+<td><code class="notranslate">True</code></td>
+<td>A public equality requirement ignores candidate locals</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto"><code class="notranslate">&gt;=</code>/<code class="notranslate">&lt;=</code> use public-version precedence. Equality requirements include local labels only when the<br>
+requirement supplies one. Ordered and compatible-release requirements cannot contain local labels.<br>
+<code class="notranslate">&gt;V</code> also excludes local versions of the same base release. <code class="notranslate">===</code> compares the normalized candidate<br>
+spelling case-insensitively with the operand; it also accepts arbitrary otherwise-invalid candidate<br>
+strings as an escape hatch.</p>
+<p dir="auto">These are version predicates, not package resolution: they do not implement package names, URLs,<br>
+markers, installed-version exceptions, stable preference or candidate-set prerelease fallback.<br>
+Predicates evaluate candidates with prereleases admitted; PEP 440's operator-specific exclusions<br>
+still apply. Callers choose which candidates to consider.</p>
+<h2 dir="auto" id="selecting-release-components">Selecting release components</h2>
+<p dir="auto"><code class="notranslate">major</code>, <code class="notranslate">minor</code>, and <code class="notranslate">patch</code> return integer components at indices 0, 1, and 2. Missing minor or<br>
+patch components are zero. They exclude prerelease/build/local suffixes and, in Python mode, epochs.<br>
+The version must have a nonempty numeric release. Ordinary Starlark calls require the version:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">major</span>(<span class="pl-s">"23.2.1"</span>)  <span class="pl-c"># 23</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">minor</span>(<span class="pl-s">"23.2.1"</span>)  <span class="pl-c"># 2</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">patch</span>(<span class="pl-s">"23.2"</span>)    <span class="pl-c"># 0</span></pre></div>
+<p dir="auto"><code class="notranslate">prefix</code> and <code class="notranslate">components</code> return dot-separated strings. <code class="notranslate">prefix(v, n)</code> is<br>
+<code class="notranslate">components(v, end=n)</code> and never pads; <code class="notranslate">n</code> must be a non-negative integer. The slice start is<br>
+inclusive and end exclusive. Negative indices resolve against the original release length.<br>
+<code class="notranslate">end=None</code> uses the original length. An explicit positive end with <code class="notranslate">pad=True</code> extends the release<br>
+with zeros before slicing. Empty selections return <code class="notranslate">""</code>.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">prefix</span>(<span class="pl-s">"1.2.3.4"</span>, <span class="pl-c1">2</span>)                      <span class="pl-c"># "1.2"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">prefix</span>(<span class="pl-s">"1.2"</span>, <span class="pl-c1">4</span>)                          <span class="pl-c"># "1.2"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"1.2.3.4"</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">2</span>)              <span class="pl-c"># "1.2"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"1.2.3.4"</span>, <span class="pl-s1">start</span><span class="pl-c1">=</span><span class="pl-c1">1</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">3</span>)     <span class="pl-c"># "2.3"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"1.2"</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">4</span>)                  <span class="pl-c"># "1.2"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"1.2"</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">4</span>, <span class="pl-s1">pad</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)        <span class="pl-c"># "1.2.0.0"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"1.2.3"</span>, <span class="pl-s1">start</span><span class="pl-c1">=</span><span class="pl-c1">1</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">4</span>, <span class="pl-s1">pad</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)  <span class="pl-c"># "2.3.0"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"1.2"</span>, <span class="pl-s1">start</span><span class="pl-c1">=</span><span class="pl-c1">-</span><span class="pl-c1">1</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">4</span>, <span class="pl-s1">pad</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)   <span class="pl-c"># "2.0.0"</span></pre></div>
+<p dir="auto">The legacy/SemVer <code class="notranslate">prefix</code>/<code class="notranslate">components</code> helpers retain permissive historical release slicing;<br>
+they do not validate SemVer syntax, including numeric leading zeros or suffixes. For example,<br>
+<code class="notranslate">prefix("01.2", 2, mode="semver")</code> returns <code class="notranslate">"1.2"</code>. Use <code class="notranslate">parse(..., mode="semver")</code> first when<br>
+validation is required. The integer <code class="notranslate">major</code>/<code class="notranslate">minor</code>/<code class="notranslate">patch</code> helpers do use the selected full parser.<br>
+Python mode also parses a full Python version before slicing. Padding is always opt-in.</p>
+<h2 dir="auto" id="compatible-and-matching-requirements">Compatible and matching requirements</h2>
+<p dir="auto"><code class="notranslate">compatible(candidate, required)</code> implements <code class="notranslate">~=required</code>: the candidate must meet the lower bound<br>
+and share all but the final written numeric release component of the requirement. At least two<br>
+components are required. Suffixes affect the lower bound but not the prefix:</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Stable-release range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">~=1.4</code></td>
+<td><code class="notranslate">&gt;=1.4, &lt;2.0</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">~=1.4.5</code></td>
+<td><code class="notranslate">&gt;=1.4.5, &lt;1.5.0</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">~=1.4.5.0</code></td>
+<td><code class="notranslate">&gt;=1.4.5.0, &lt;1.4.6</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">The prefix excludes prereleases of the next series, even when their precedence is below that<br>
+series' final release. Preserve trailing zeros in requirements; padding them first changes the<br>
+compatibility boundary.</p>
+<p dir="auto"><code class="notranslate">matches(candidate, pattern)</code> accepts an exact version or one trailing <code class="notranslate">.*</code> after a nonempty<br>
+numeric release prefix. Exact matching uses the selected mode's equality rules; PEP 440 additionally<br>
+applies its local-label rule. Wildcards compare whole numeric components and zero-pad a shorter<br>
+candidate, ignoring remaining components and suffixes. Python wildcard prefixes can include epochs.<br>
+Bare <code class="notranslate">*</code>, interior/partial/multiple wildcards and suffix wildcards fail.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">compatible</span>(<span class="pl-s">"1.4.5"</span>, <span class="pl-s">"1.4.0"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">compatible</span>(<span class="pl-s">"1.5.0"</span>, <span class="pl-s">"1.4.0"</span>)  <span class="pl-c"># False</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">compatible</span>(<span class="pl-s">"1.9.0"</span>, <span class="pl-s">"1.4"</span>)    <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">matches</span>(<span class="pl-s">"1.2.3"</span>, <span class="pl-s">"1.2.*"</span>)    <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">matches</span>(<span class="pl-s">"1.20.3"</span>, <span class="pl-s">"1.2.*"</span>)   <span class="pl-c"># False</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">matches</span>(<span class="pl-s">"1"</span>, <span class="pl-s">"1.0.*"</span>)        <span class="pl-c"># True</span></pre></div>
+<p dir="auto">Requirement tokens are strings interpreted by the library, not overloaded Starlark operators:</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Operator</th>
+<th>Meaning</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">==</code>, <code class="notranslate">!=</code></td>
+<td>Exact or trailing-prefix match/exclusion</td>
+<td><code class="notranslate">==1.2.*</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">&lt;</code>, <code class="notranslate">&lt;=</code>, <code class="notranslate">&gt;</code>, <code class="notranslate">&gt;=</code></td>
+<td>Ordering; PEP 440 uses clause-specific rules</td>
+<td><code class="notranslate">&gt;=1.2,&lt;2</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">~=</code></td>
+<td>Compatible release</td>
+<td><code class="notranslate">~=1.2</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">!~=</code></td>
+<td>Logical complement of compatible release</td>
+<td><code class="notranslate">!~=1.2</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">~~=</code></td>
+<td>Prefix match plus a lower bound at the explicit prefix</td>
+<td><code class="notranslate">~~=1.2.*</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">!~~=</code></td>
+<td>Logical complement of extended compatibility</td>
+<td><code class="notranslate">!~~=1.2.*</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">===</code></td>
+<td>Python arbitrary equality; PEP 440 mode only</td>
+<td><code class="notranslate">===1.2+local</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">The negated/extended compatible operators are library extensions to Python syntax. <code class="notranslate">~~=1.2.*</code><br>
+combines <code class="notranslate">&gt;=1.2</code> with the <code class="notranslate">1.2</code> prefix. In SemVer/Python modes it excludes <code class="notranslate">1.2-rc1</code>/<code class="notranslate">1.2rc1</code>, but<br>
+can match <code class="notranslate">1.2.1-rc1</code>/<code class="notranslate">1.2.1rc1</code>. <code class="notranslate">==1.2.*</code> has no such lower bound. Negations complement the<br>
+positive predicate but still fail on malformed input. Extended compatibility requires <code class="notranslate">.*</code>;<br>
+compatible and ordered operands cannot use wildcards.</p>
+<h2 dir="auto" id="version-introspection">Version introspection</h2>
+<p dir="auto"><code class="notranslate">component_count</code> counts the numeric release components actually supplied, excluding every suffix<br>
+and the PEP 440 epoch. It does not count comparison padding. <code class="notranslate">component</code> accepts an integer index;<br>
+negative indices count from the original release's end. An out-of-range index returns zero in<br>
+either direction. These helpers parse the complete version in the selected mode and require a<br>
+non-empty numeric release, including in legacy mode.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">component_count</span>(<span class="pl-s">"1.2.0.0-rc.1"</span>)  <span class="pl-c"># 4</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">component</span>(<span class="pl-s">"1.2.3.4"</span>, <span class="pl-c1">-</span><span class="pl-c1">1</span>)        <span class="pl-c"># 4</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">component</span>(<span class="pl-s">"1.2"</span>, <span class="pl-c1">3</span>)             <span class="pl-c"># 0</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">component_count</span>(<span class="pl-s">"1!1.2rc1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)  <span class="pl-c"># 2</span></pre></div>
+<p dir="auto"><code class="notranslate">prerelease</code> returns the label without its leading delimiter. SemVer preserves the identifier<br>
+spelling and boundaries (<code class="notranslate">rc1</code> and <code class="notranslate">rc.1</code> differ); legacy returns its historical normalized<br>
+identifiers (<code class="notranslate">rc1</code> becomes <code class="notranslate">rc.1</code>). PEP 440 returns the normalized pre segment, such as <code class="notranslate">a0</code>, <code class="notranslate">b2</code>,<br>
+or <code class="notranslate">rc1</code>, excluding post/dev/local segments. A version without a pre segment returns <code class="notranslate">""</code>.</p>
+<p dir="auto"><code class="notranslate">is_prerelease</code> is true for any SemVer/legacy prerelease segment. In PEP 440 it follows<br>
+<a href="https://packaging.pypa.io/en/stable/version.html#packaging.version.Version.is_prerelease" rel="nofollow">Python's <code class="notranslate">Version.is_prerelease</code></a>:<br>
+a pre <strong>or development</strong> segment makes it true, including a development release of a postrelease.<br>
+A postrelease alone and a local label alone do not. Consequently a Python development-only<br>
+version can have <code class="notranslate">is_prerelease()==True</code> while <code class="notranslate">prerelease()==""</code>.</p>
+<p dir="auto"><code class="notranslate">has_prerelease_prefix</code> tests a case-sensitive textual prefix of the first prerelease identifier,<br>
+without interpreting phases: both <code class="notranslate">rc1</code> and <code class="notranslate">rc.1</code> match <code class="notranslate">"rc"</code>, but <code class="notranslate">"rc."</code> does not match the first<br>
+identifier of <code class="notranslate">rc.1</code>. Normalization happens before matching in legacy/Python modes. An empty prefix<br>
+matches any non-empty pre segment; it never matches a final or development-only Python release.<br>
+No helper changes a resolver's separate prerelease-admission policy.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">prerelease</span>(<span class="pl-s">"1.2.3-rc.4"</span>)                    <span class="pl-c"># "rc.4"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">has_prerelease_prefix</span>(<span class="pl-s">"1.2.3-rc1"</span>, <span class="pl-s">"rc"</span>)     <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">is_prerelease</span>(<span class="pl-s">"1.2.post1.dev2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">prerelease</span>(<span class="pl-s">"1.2.post1.dev2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"pep440"</span>)  <span class="pl-c"># ""</span></pre></div>
+<p dir="auto"><code class="notranslate">build</code> returns the metadata after <code class="notranslate">+</code>, or <code class="notranslate">""</code> when absent. SemVer string inputs retain the exact<br>
+metadata spelling, including case and leading zeros (<code class="notranslate">+001.X-y</code> gives <code class="notranslate">"001.X-y"</code>), after validating<br>
+the complete version. Legacy input uses historical normalization, including numeric conversion.<br>
+Parsed lists/tuples have already lost numeric spelling, so those inputs return their normalized<br>
+identifiers. <code class="notranslate">build</code> rejects Python mode: Python local labels participate in precedence, whereas<br>
+SemVer metadata does not.</p>
+<p dir="auto"><code class="notranslate">local</code> accepts Python mode only, defaults to that mode, and returns the normalized local label:<br>
+lowercase text, dot-separated identifiers and normalized numeric components. It returns <code class="notranslate">""</code><br>
+when absent. Neither helper includes <code class="notranslate">+</code> in its result.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">build</span>(<span class="pl-s">"1.2.3+001.X-y"</span>)           <span class="pl-c"># "001.X-y"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">local</span>(<span class="pl-s">"1.2+Ubuntu-01_FOO"</span>)       <span class="pl-c"># "ubuntu.1.foo"</span></pre></div>
+<h2 dir="auto" id="requirement-expressions-and-constants">Requirement expressions and constants</h2>
+<p dir="auto">Requirement clauses can use the release-selection and introspection helpers as function calls on<br>
+the left side. Omit the version to use the candidate. Calls require parentheses. Bare identifiers<br>
+refer to caller-supplied constants, described below:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">versions</span>.<span class="pl-c1">check_all_requirements</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-s">"major()==23,minor()&gt;=2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-s">"prefix(2)==23.2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-s">"components(start=1,end=3)==2.1"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-s">"major(prefix(2))==23"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1-rc1"</span>, <span class="pl-s">"is_prerelease()==True"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1-rc1"</span>, <span class="pl-s">'prerelease()=="rc1"'</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1-rc1"</span>, <span class="pl-s">'has_prerelease_prefix("rc")==True'</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span></pre></div>
+<p dir="auto"><code class="notranslate">major()==23,minor()&gt;=2</code> compares the individual major and minor integers, not a release prefix.<br>
+Zero-argument component calls use one non-negative integer operand with <code class="notranslate">==</code>, <code class="notranslate">!=</code>, <code class="notranslate">&lt;</code>,<br>
+<code class="notranslate">&lt;=</code>, <code class="notranslate">&gt;</code>, or <code class="notranslate">&gt;=</code>. A missing minor/patch component is zero. Use <code class="notranslate">prefix</code> or <code class="notranslate">components</code> for a<br>
+multi-component version value and compatible-release/prefix operations.</p>
+<p dir="auto"><code class="notranslate">prefix(2)</code> supplies the candidate as the omitted first argument; <code class="notranslate">prefix(count=2)</code> is equivalent.<br>
+Use <code class="notranslate">prefix("24.3.2", 2)</code> or <code class="notranslate">prefix(version="24.3.2", count=2)</code> for an explicit version.<br>
+<code class="notranslate">components()</code> selects the candidate's complete release; <code class="notranslate">components("24.3.2", start=1, end=3)</code><br>
+uses an explicit version. <code class="notranslate">major("24.3.2")</code> and the corresponding minor/patch calls are also allowed.</p>
+<p dir="auto"><code class="notranslate">component(3)</code> and <code class="notranslate">component(index=3)</code> use the candidate; pass a version and index explicitly to<br>
+inspect another version. The same convention applies to <code class="notranslate">has_prerelease_prefix("rc")</code> or<br>
+<code class="notranslate">has_prerelease_prefix(prefix="rc")</code>. <code class="notranslate">component_count</code>, <code class="notranslate">prerelease</code>, <code class="notranslate">is_prerelease</code>, <code class="notranslate">build</code>, and<br>
+<code class="notranslate">local</code> take no positional arguments when inspecting the candidate.</p>
+<p dir="auto">The new integer introspection results require non-negative integer operands and ordered/exact<br>
+comparators. Boolean results require literal <code class="notranslate">True</code>/<code class="notranslate">False</code> with <code class="notranslate">==</code>/<code class="notranslate">!=</code>; metadata/prerelease text<br>
+requires a quoted string with <code class="notranslate">==</code>/<code class="notranslate">!=</code>. These comparisons use the returned value directly, without<br>
+version normalization or SemVer's metadata-ignoring equality. For example, <code class="notranslate">build()=="001"</code> tests the<br>
+exact metadata text. Existing release-valued helpers retain their version comparison semantics.<br>
+Bare predicate calls without a comparator are not supported.<br>
+Quoted-text operand handling applies only to actual calls, including <code class="notranslate">prerelease ()</code> with<br>
+whitespace before the parentheses. A constant named <code class="notranslate">prerelease</code>, <code class="notranslate">build</code>, or <code class="notranslate">local</code> keeps the<br>
+ordinary version-operand grammar; sharing a function name does not change its interpretation.</p>
+<p dir="auto">Arguments can be integer/string/boolean/<code class="notranslate">None</code> literals, constant references, keyword arguments,<br>
+and nested calls to these helpers. Version strings can use either quote style and ordinary quote/backslash or newline,<br>
+carriage-return and tab escapes. Positional arguments precede keyword arguments. <code class="notranslate">mode</code> is inherited<br>
+from the requirement check and cannot be overridden inside an expression. This applies at every<br>
+nesting level and takes precedence over a helper's standalone default. In particular <code class="notranslate">local()</code><br>
+inside a SemVer expression fails rather than silently switching to Python parsing. Pass<br>
+<code class="notranslate">mode="pep440"</code> to the checker when using Python-only helpers. Arbitrary Starlark code,<br>
+attribute access, arithmetic and other functions are outside this grammar.</p>
+<p dir="auto">Comma-separated clauses are ANDed. Commas inside calls or quoted literals do not split clauses.<br>
+Whitespace around clauses, names, operators and arguments is accepted. A plain version without a<br>
+comparator means <code class="notranslate">==</code>; function expressions require an explicit comparator. A single <code class="notranslate">=</code> is not an<br>
+equality comparator.</p>
+<h3 dir="auto" id="caller-supplied-constants">Caller-supplied constants</h3>
+<p dir="auto"><code class="notranslate">check_one_requirement</code> and <code class="notranslate">check_all_requirements</code> accept a keyword-only <code class="notranslate">constants</code> dictionary,<br>
+defaulting to <code class="notranslate">None</code> (no bindings). A bare identifier on the left side, or inside a function's<br>
+arguments, looks up that name in the dictionary. The right side retains the existing version-operand<br>
+grammar; constant substitution does not rewrite version literals or arbitrary-equality operands.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">candidate</span> <span class="pl-c1">=</span> <span class="pl-s">"23.2.1"</span>
+<span class="pl-s1">constants</span> <span class="pl-c1">=</span> {
+    <span class="pl-s">"major"</span>: <span class="pl-s1">versions</span>.<span class="pl-c1">major</span>(<span class="pl-s1">candidate</span>),
+    <span class="pl-s">"minor"</span>: <span class="pl-s1">versions</span>.<span class="pl-c1">minor</span>(<span class="pl-s1">candidate</span>),
+    <span class="pl-s">"patch"</span>: <span class="pl-s1">versions</span>.<span class="pl-c1">patch</span>(<span class="pl-s1">candidate</span>),
+    <span class="pl-s">"width"</span>: <span class="pl-c1">2</span>,
+}
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_all_requirements</span>(
+    <span class="pl-s1">candidate</span>,
+    <span class="pl-s">"major==23,minor&gt;=2,prefix(width)==23.2"</span>,
+    <span class="pl-s1">constants</span><span class="pl-c1">=</span><span class="pl-s1">constants</span>,
+    <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>,
+)  <span class="pl-c"># True</span></pre></div>
+<p dir="auto">Names are case-sensitive ASCII identifiers matching <code class="notranslate">[A-Za-z_][A-Za-z0-9_]*</code>; <code class="notranslate">True</code>, <code class="notranslate">False</code>, and<br>
+<code class="notranslate">None</code> remain literals and cannot be dictionary keys. The library supplies no implicit constants.<br>
+Calls always use the library's function namespace: a <code class="notranslate">major</code> binding does not change <code class="notranslate">major()</code>.<br>
+For example, with candidate <code class="notranslate">"23.2.1"</code> and <code class="notranslate">constants={"major": 99}</code>, <code class="notranslate">major==99,major()==23</code> holds.<br>
+A dictionary key does not introduce a callable function.</p>
+<p dir="auto">Values are passed to the surrounding version comparison or function and must be valid for that<br>
+context. Integer/string/list/tuple versions, or Python-mode parsed records, can serve as comparison<br>
+values; booleans and <code class="notranslate">None</code> can serve as helper arguments, such as <code class="notranslate">components(end=stop,pad=padding)</code>.<br>
+Quoted strings remain literal. Values are never evaluated as source code or invoked as callbacks.<br>
+Comparison uses the selected mode regardless of the constant's name: integer <code class="notranslate">23</code> equals <code class="notranslate">23.0</code><br>
+in SemVer/Python modes but precedes it in legacy mode.</p>
+<p dir="auto">Parsing stores unresolved references without capturing a dictionary. Supply bindings when checking<br>
+both string and pre-parsed requirements; a missing name fails at evaluation. Reuse parsed clauses<br>
+across candidates and construct a fresh dictionary for each candidate when values depend on its<br>
+version. The library neither recomputes values nor mutates the supplied dictionary.</p>
+<h2 dir="auto" id="parsed-requirements-and-failures">Parsed requirements and failures</h2>
+<p dir="auto"><code class="notranslate">check_all_requirements</code> accepts a comma-separated string or a list of strings/parsed records.<br>
+<code class="notranslate">check_one_requirement</code> accepts one string or one record. <code class="notranslate">parse_requirements</code> returns records with<br>
+<code class="notranslate">op</code> and <code class="notranslate">version</code>; zero-argument component-call records also carry <code class="notranslate">component</code>, and other expression clauses carry<br>
+an opaque <code class="notranslate">expression</code> description, including unresolved constant references. Legacy/SemVer plain operands are parsed component lists, whereas<br>
+Python plain operands retain strings for wildcard/arbitrary equality. New introspection expressions<br>
+also carry <code class="notranslate">result_type</code>; their <code class="notranslate">version</code> field holds the typed integer, boolean or text operand.<br>
+Keep the same mode when<br>
+parsing and checking; treating a normalized legacy suffix list as SemVer cannot restore its spelling.</p>
+<p dir="auto">Invalid modes, malformed standards-mode versions, unsupported comparators, malformed wildcard<br>
+shapes, invalid component indices/counts, invalid function expressions, malformed constant dictionaries, and unknown constant references fail. Some argument/arity<br>
+and Python operand restrictions are checked during evaluation because they depend on the selected<br>
+function or clause. A negated requirement does not suppress those failures.</p>
+<h2 dir="auto" id="reference-validation">Reference validation</h2>
+<p dir="auto">The tests retain the historical assertions, cover the full published SemVer precedence example,<br>
+and compare Python parsing/ordering/clauses with fixtures generated by <code class="notranslate">packaging==26.0</code>.<br>
+That Python dependency is for fixture generation only; Starlark consumers have no Python dependency.</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">python3 -m pip install -r tools/requirements-pep440.txt
+python3 tools/generate_pep440_cases.py
+python3 tools/generate_pep440_cases.py --check</pre></div></main><footer>Release snapshot · 4248115c48f297ed8075e46aef6d84d81cbb4593</footer></body></html>

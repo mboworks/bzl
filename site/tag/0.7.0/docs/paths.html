@@ -1,0 +1,184 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>docs/paths.md - bzl 0.7.0</title><style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 76rem; margin: auto; padding: 2rem; }
+a { color: light-dark(#075da8, #8cc8ff); }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #888; }
+pre { padding: 1rem; overflow: auto; background: light-dark(#f3f5f7, #20252b); }
+code { font-size: .9em; } img { max-width: 100%; }
+table { display: block; overflow: auto; border-collapse: collapse; }
+th, td { border: 1px solid #888; padding: .4rem .7rem; }
+blockquote { border-left: 4px solid #888; margin-left: 0; padding-left: 1rem; }
+</style><body><nav><a href="/bzl/site/tag/0.7.0/">Home</a><a href="/bzl/site/tag/0.7.0/documents.html">Documentation</a><a href="https://github.com/mboworks/bzl/releases/tag/0.7.0">Release &amp; downloads</a><a href="https://github.com/mboworks/bzl/tree/4248115c48f297ed8075e46aef6d84d81cbb4593">Source</a></nav><p>bzl 0.7.0</p><main><h1 dir="auto" id="paths">Paths</h1>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-en">load</span>(<span class="pl-s">"@mboworks_bzl//bzl/paths:paths.bzl"</span>, <span class="pl-s">"paths"</span>)</pre></div>
+<p dir="auto">The module performs lexical path-string operations. It does not read the filesystem, resolve<br>
+symlinks, inspect the current directory, expand environment variables or <code class="notranslate">~</code>, or check existence.<br>
+Choose Unix or Windows behavior explicitly; it does not depend on the host running Bazel.</p>
+<h2 dir="auto" id="functions-and-signatures">Functions and signatures</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Function</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">normalize(path, collapse=False, is_windows=False)</code></td>
+<td>Standardized separators, no redundant separators or <code class="notranslate">.</code> segments</td>
+</tr>
+<tr>
+<td><code class="notranslate">normalize_windows(path, collapse=False)</code></td>
+<td>Windows normalization</td>
+</tr>
+<tr>
+<td><code class="notranslate">collapse(path, is_windows=False)</code></td>
+<td>Lexically remove <code class="notranslate">.</code> and collapse <code class="notranslate">..</code> where possible</td>
+</tr>
+<tr>
+<td><code class="notranslate">collapse_windows(path)</code></td>
+<td>Windows lexical collapse</td>
+</tr>
+<tr>
+<td><code class="notranslate">is_absolute(path, is_windows=False)</code></td>
+<td>Boolean structural absolute-path test</td>
+</tr>
+<tr>
+<td><code class="notranslate">is_absolute_windows(path)</code></td>
+<td>Windows structural absolute-path test</td>
+</tr>
+<tr>
+<td><code class="notranslate">join(*parts, collapse=False, is_windows=False)</code></td>
+<td>Concatenate nonempty parts, then normalize</td>
+</tr>
+<tr>
+<td><code class="notranslate">join_windows(*parts, collapse=False)</code></td>
+<td>Windows concatenating join</td>
+</tr>
+<tr>
+<td><code class="notranslate">join_respect_absolute(*parts, collapse=False, is_windows=False)</code></td>
+<td>Join starting at the last absolute part</td>
+</tr>
+<tr>
+<td><code class="notranslate">join_respect_absolute_windows(*parts, collapse=False)</code></td>
+<td>Windows resetting join</td>
+</tr>
+<tr>
+<td><code class="notranslate">ensure_trailing_slash(path, collapse=False, default_if_empty="", is_windows=False)</code></td>
+<td>Normalize and ensure exactly one trailing separator</td>
+</tr>
+<tr>
+<td><code class="notranslate">ensure_trailing_slash_windows(path, collapse=False, default_if_empty="")</code></td>
+<td>Windows trailing-separator helper</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">All results are strings except the absolute-path tests. Path values are strings; joining skips empty<br>
+strings and <code class="notranslate">None</code> parts. Generic functions accept <code class="notranslate">is_windows=True</code>; the <code class="notranslate">_windows</code> wrappers force<br>
+Windows behavior even if an <code class="notranslate">is_windows</code> keyword is forwarded to them.</p>
+<h2 dir="auto" id="separator-and-root-rules">Separator and root rules</h2>
+<p dir="auto">Both slash styles are recognized as separators in both modes. Unix output uses <code class="notranslate">/</code>; Windows output<br>
+uses <code class="notranslate">\</code>. Repeated separators, <code class="notranslate">.</code> components, and trailing separators are removed by normalization,<br>
+except where the separator forms a root.</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Input</th>
+<th>Unix normalization</th>
+<th>Windows normalization</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Empty string</td>
+<td>Empty string</td>
+<td>Empty string</td>
+</tr>
+<tr>
+<td><code class="notranslate">/</code></td>
+<td><code class="notranslate">/</code></td>
+<td><code class="notranslate">\</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">//</code></td>
+<td><code class="notranslate">/</code></td>
+<td><code class="notranslate">\</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">a//b/./c/</code></td>
+<td><code class="notranslate">a/b/c</code></td>
+<td><code class="notranslate">a\b\c</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">C:/foo/bar</code></td>
+<td><code class="notranslate">C:/foo/bar</code></td>
+<td><code class="notranslate">C:\foo\bar</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">C:relative/path</code></td>
+<td><code class="notranslate">C:relative/path</code></td>
+<td><code class="notranslate">C:\relative\path</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">//server/share/dir</code></td>
+<td><code class="notranslate">/server/share/dir</code></td>
+<td><code class="notranslate">\server\share\dir</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Windows mode recognizes a drive-like prefix by a colon in the second character and treats it as<br>
+an absolute root. Therefore <code class="notranslate">C:</code> becomes <code class="notranslate">C:\</code>, and <code class="notranslate">C:foo</code> becomes <code class="notranslate">C:\foo</code>. Windows drive-relative<br>
+semantics are not supported. A single leading slash is a local root; two leading slashes preserve<br>
+the UNC form. These are structural string rules rather than validation of drive/share names.</p>
+<p dir="auto"><code class="notranslate">is_absolute</code> standardizes slash direction but does not otherwise normalize. Unix absolute paths<br>
+start with a separator; Windows mode also recognizes drive-like prefixes. A drive-prefixed path<br>
+is relative under Unix rules. The empty string is never absolute.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">paths</span>.<span class="pl-c1">is_absolute</span>(<span class="pl-s">"C:/foo"</span>)          <span class="pl-c"># False</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">is_absolute_windows</span>(<span class="pl-s">"C:foo"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">is_absolute_windows</span>(<span class="pl-s">"/foo"</span>)   <span class="pl-c"># True</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">normalize_windows</span>(<span class="pl-s">"C:foo"</span>)    <span class="pl-c"># "C:\\foo"</span></pre></div>
+<h2 dir="auto" id="normalization-and-collapse">Normalization and collapse</h2>
+<p dir="auto"><code class="notranslate">normalize</code> preserves <code class="notranslate">..</code> by default. <code class="notranslate">collapse=True</code> additionally applies lexical parent collapse:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">paths</span>.<span class="pl-c1">normalize</span>(<span class="pl-s">"a/./b/../c"</span>)                 <span class="pl-c"># "a/b/../c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">normalize</span>(<span class="pl-s">"a/./b/../c"</span>, <span class="pl-s1">collapse</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)  <span class="pl-c"># "a/c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">collapse</span>(<span class="pl-s">"a/b/../c"</span>)                    <span class="pl-c"># "a/c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">collapse</span>(<span class="pl-s">"../../a"</span>)                     <span class="pl-c"># "../../a"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">collapse</span>(<span class="pl-s">"/../../a"</span>)                    <span class="pl-c"># "/a"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">collapse</span>(<span class="pl-s">"a/.."</span>)                        <span class="pl-c"># ""</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">collapse_windows</span>(<span class="pl-s">"C:/a/../../b"</span>)         <span class="pl-c"># "C:\\b"</span></pre></div>
+<p dir="auto">A relative path retains leading <code class="notranslate">..</code> when there is no preceding component to remove. An absolute<br>
+root discards attempts to move above it. UNC collapse preserves its leading double separator;<br>
+server/share names participate in lexical component collapse rather than receiving filesystem<br>
+share-boundary semantics. A path that collapses away completely is empty, not <code class="notranslate">.</code>.</p>
+<p dir="auto">Collapsing does not account for symlinks: <code class="notranslate">foo/bar/..</code> becomes <code class="notranslate">foo</code> regardless of what <code class="notranslate">bar</code> denotes<br>
+on a real filesystem. Use these helpers for lexical paths, not filesystem resolution or containment.</p>
+<h2 dir="auto" id="joining">Joining</h2>
+<p dir="auto"><code class="notranslate">join</code> concatenates all nonempty parts and normalizes the result. A later absolute-looking part<br>
+does not discard earlier parts. A drive prefix becomes a Windows root only when it starts the<br>
+joined value; in a later part it remains a literal directory component.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">paths</span>.<span class="pl-c1">join</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"/c/d"</span>)                 <span class="pl-c"># "a/b/c/d"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join</span>(<span class="pl-s">"a"</span>, <span class="pl-s">""</span>, <span class="pl-c1">None</span>, <span class="pl-s">"b"</span>)            <span class="pl-c"># "a/b"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"../c"</span>, <span class="pl-s1">collapse</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)   <span class="pl-c"># "a/c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join_windows</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"C:/foo"</span>)        <span class="pl-c"># "a\\b\\C:\\foo"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join</span>()                               <span class="pl-c"># ""</span></pre></div>
+<p dir="auto"><code class="notranslate">join_respect_absolute</code> finds the last structurally absolute part and discards earlier parts before<br>
+joining. Its absolute-path test uses the selected platform rules:</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">paths</span>.<span class="pl-c1">join_respect_absolute</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"/c/d"</span>)   <span class="pl-c"># "/c/d"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join_respect_absolute</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"C:/foo"</span>) <span class="pl-c"># "a/b/C:/foo"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join_respect_absolute_windows</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"C:/foo"</span>, <span class="pl-s">"bar"</span>)  <span class="pl-c"># "C:\\foo\\bar"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join_respect_absolute_windows</span>(<span class="pl-s">"C:/foo"</span>, <span class="pl-s">"/bar"</span>)        <span class="pl-c"># "\\bar"</span></pre></div>
+<p dir="auto">Neither join inserts a current directory, evaluates a drive's current directory, or queries the host.</p>
+<h2 dir="auto" id="trailing-separators">Trailing separators</h2>
+<p dir="auto"><code class="notranslate">ensure_trailing_slash</code> normalizes first, optionally collapses parents, then adds exactly one trailing<br>
+separator unless the result is already a root. If normalization produces an empty value,<br>
+<code class="notranslate">default_if_empty</code> is normalized in the same way and used as the fallback. Its default is empty,<br>
+so an empty relative path is not implicitly turned into an absolute root.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash</span>(<span class="pl-s">"a//b///"</span>)          <span class="pl-c"># "a/b/"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash</span>(<span class="pl-s">"/"</span>)                <span class="pl-c"># "/"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash</span>(<span class="pl-s">""</span>)                 <span class="pl-c"># ""</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash</span>(<span class="pl-s">""</span>, <span class="pl-s1">default_if_empty</span><span class="pl-c1">=</span><span class="pl-s">"/"</span>)  <span class="pl-c"># "/"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash</span>(<span class="pl-s">"a/.."</span>, <span class="pl-s1">collapse</span><span class="pl-c1">=</span><span class="pl-c1">True</span>, <span class="pl-s1">default_if_empty</span><span class="pl-c1">=</span><span class="pl-s">"root"</span>)  <span class="pl-c"># "root/"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash_windows</span>(<span class="pl-s">"C:"</span>)        <span class="pl-c"># "C:\\"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash_windows</span>(<span class="pl-s">"//server/share"</span>)  <span class="pl-c"># "\\\\server\\share\\"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash_windows</span>(<span class="pl-s">""</span>, <span class="pl-s1">default_if_empty</span><span class="pl-c1">=</span><span class="pl-s">"/"</span>)  <span class="pl-c"># "\\"</span></pre></div>
+<p dir="auto">A fallback that also normalizes to empty still returns empty. Existing trailing separators never<br>
+double; Unix roots, Windows drive/local roots and the UNC double-separator root retain their form.</p></main><footer>Release snapshot · 4248115c48f297ed8075e46aef6d84d81cbb4593</footer></body></html>
