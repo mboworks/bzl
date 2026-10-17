@@ -4,6 +4,8 @@
 - Support compatible-release (`~=`), negated compatible (`!~=`), extended wildcard-compatible
   (`~~=`), and negated extended (`!~~=`) requirements, plus trailing `.*` matching/exclusion
   (`==`, `!=`). Extended compatibility adds a stable lower bound to prefix matching.
+- Add `major`, `minor`, and `patch` integer component references in requirement clauses, including
+  mixed named/plain expressions such as `major==23,minor>=2,!=23.2.1`.
 - Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep
   `mode = "legacy"` by default. SemVer mode zero-pads release comparisons and preserves distinct
   prerelease identifiers such as `rc1` and `rc.1`, with lexical `rc10 < rc2` ordering.

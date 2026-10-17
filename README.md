@@ -198,6 +198,28 @@ requirements = versions.parse_requirements("==1.2.*,!=1.2.4", mode = "semver")
 versions.check_all_requirements("1.2.3", requirements, mode = "semver")  # True
 ```
 
+### Named release components
+
+Requirement clauses can compare individual numeric release components directly:
+
+```starlark
+versions.check_all_requirements("23.2.1", "major==23,minor>=2", mode = "semver")  # True
+versions.check_one_requirement("23.1.9", "minor>=2", mode = "semver")  # False
+versions.check_one_requirement("23.2.1.9", "patch==1", mode = "semver")  # True
+```
+
+`major`, `minor`, and `patch` select indices 0, 1, and 2; they are component references, not functions
+or release prefixes. Missing minor or patch components are zero. The operand must be a single
+non-negative integer and the operator one of `==`, `!=`, `<`, `<=`, `>`, `>=`. A named clause needs
+an explicit operator; `major=23`, wildcards, suffixes, multi-part operands and compatible-release
+operators on a single component fail. Use ordinary version clauses for compatible release or prefix
+matching, and `prefix`/`components` for explicit release slices.
+
+`parse_requirements` adds `component = "major"`, `"minor"`, or `"patch"` to named-clause records;
+plain records keep their existing `op`/`version` shape. Both string and parsed requirement checks
+support the names, under either comparison mode. These names are library extensions to Python's
+specifier syntax and can be passed through by a selector such as `latest:major==23,minor>=2`.
+
 ## Paths
 
 Implements file path manipulation functions.

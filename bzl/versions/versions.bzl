@@ -18,6 +18,8 @@ SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
 """
 
 # Longest tokens first: !~~= must never be consumed as !~= or ~=.
+_NAMED_COMPONENTS = {"major": 0, "minor": 1, "patch": 2}
+_COMPONENT_OPERATORS = ["==", "!=", ">", ">=", "<", "<="]
 _REQUIREMENT_OPERATORS = ["!~~=", "~~=", "!~=", "~=", ">=", "<=", "==", "!=", ">", "<"]
 
 def _maybe_int(value):
@@ -514,6 +516,15 @@ def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "l
         fail("Bad comparator: '{op}'.".format(op = op))
 
 def _check_one_requirement_struct(version, requirement, *, skip_build = True, mode = "legacy"):
+    component = getattr(requirement, "component", None)
+    if component != None:
+        if component not in _NAMED_COMPONENTS:
+            fail("Unknown named version component: '{}'".format(component))
+        release = _release_components(_parse_version(version, mode = mode))
+        index = _NAMED_COMPONENTS[component]
+        version = release[index] if index < len(release) else 0
+        if type(version) != "int" or version < 0:
+            fail("Named version components require non-negative integers.")
     return _version_compare(
         version,
         requirement.op,
@@ -531,15 +542,7 @@ def _check_one_requirement(version, requirement, *, skip_build = True, mode = "l
     Ordering uses <, <=, >, >=. All operators are requirement-string tokens.
     """
     if type(requirement) == "string":
-        op, rhs = _split_requirement(requirement)
-        return _version_compare(
-            version,
-            op,
-            rhs,
-            skip_build = skip_build,
-            mode = mode,
-            error = "Bad requirement: '{requirement}'.".format(requirement = requirement),
-        )
+        requirement = _parse_split_requirement(requirement.strip(), mode = mode)
     return _check_one_requirement_struct(version, requirement, skip_build = skip_build, mode = mode)
 
 def _check_all_requirements(version, requirements, *, skip_build = True, mode = "legacy"):
@@ -565,6 +568,16 @@ def _split_requirement(requirement):
     return "==", value
 
 def _parse_split_requirement(req, *, mode = "legacy"):
+    for component in _NAMED_COMPONENTS:
+        if not req.startswith(component):
+            continue
+        condition = req[len(component):].strip()
+        if not any([condition.startswith(op) for op in _COMPONENT_OPERATORS]):
+            fail("Named version component '{}' requires ==, !=, <, <=, >, or >=.".format(component))
+        op, value = _split_requirement(condition)
+        if op not in _COMPONENT_OPERATORS or not value or not value.isdigit():
+            fail("Named version component '{}' requires a non-negative integer operand.".format(component))
+        return struct(component = component, op = op, version = [int(value)])
     op, value = _split_requirement(req)
     if _has_wildcard(value):
         if op not in ["==", "!=", "~~=", "!~~="]:
