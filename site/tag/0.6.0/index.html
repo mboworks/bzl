@@ -1,0 +1,107 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>README.md - bzl 0.6.0</title><style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 76rem; margin: auto; padding: 2rem; }
+a { color: light-dark(#075da8, #8cc8ff); }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #888; }
+pre { padding: 1rem; overflow: auto; background: light-dark(#f3f5f7, #20252b); }
+code { font-size: .9em; } img { max-width: 100%; }
+table { display: block; overflow: auto; border-collapse: collapse; }
+th, td { border: 1px solid #888; padding: .4rem .7rem; }
+blockquote { border-left: 4px solid #888; margin-left: 0; padding-left: 1rem; }
+</style><body><nav><a href="/bzl/site/tag/0.6.0/">Home</a><a href="/bzl/site/tag/0.6.0/documents.html">Documentation</a><a href="https://github.com/mboworks/bzl/releases/tag/0.6.0">Release &amp; downloads</a><a href="https://github.com/mboworks/bzl/tree/786019d1a603dcec0ab6fe5cbd99942e0ff2fda6">Source</a></nav><p>bzl 0.6.0</p><main><h1 dir="auto" id="mbo-works-bzl-a-bazel-support-library-">MBO Works bzl, a Bazel support library <a target="_blank" rel="noopener noreferrer" href="https://github.com/mboworks/bzl/blob/786019d1a603dcec0ab6fe5cbd99942e0ff2fda6/docs/assets/mboworks-logo.png"><img src="assets/ae390126cc7956ccff154bf403f3b5008cbe446c180d74d8d2164db1e628d3ed.png" alt="MBO Works" width="64" height="64" align="right" style="max-width: 100%; height: auto; max-height: 64px;"></a></h1>
+<p dir="auto"><a href="https://mboworks.github.io/bzl/" rel="nofollow">Release website</a> · <a href="docs/infrastructure.html">Infrastructure and publishing</a></p>
+<p dir="auto">This library provides <a href="http://bazel.build" rel="nofollow">Bazel</a> <a href="https://bazel.build/rules/language" rel="nofollow">Starlark</a> functionality meant to help in maintaining other libraries.</p>
+<p dir="auto"><a href="https://github.com/mboworks/bzl/actions/workflows/main.yml"><img src="assets/ce733292a922c08274cf5a2096f8fa4cf01023bfa51a36ef6beecaaef371a9d9.svg" alt="Test" style="max-width: 100%;"></a></p>
+<p dir="auto">The following libraries are implemented:</p>
+<ul dir="auto">
+<li><a href="#versions">Versions</a></li>
+<li><a href="#paths">Paths</a></li>
+</ul>
+<h2 dir="auto" id="versions">Versions</h2>
+<p dir="auto"><a href="docs/versions.html"><code class="notranslate">bzl/versions</code></a> provides version parsing, precedence comparisons, release-component<br>
+selection, compatible-release checks and wildcard matching. Requirement strings support ANDed<br>
+clauses and version-function expressions.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-en">load</span>(<span class="pl-s">"@mboworks_bzl//bzl/versions:versions.bzl"</span>, <span class="pl-s">"versions"</span>)
+
+<span class="pl-s1">versions</span>.<span class="pl-c1">major</span>(<span class="pl-s">"23.2.1"</span>)                               <span class="pl-c"># 23</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">prefix</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-c1">2</span>)                           <span class="pl-c"># "23.2"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">components</span>(<span class="pl-s">"23.2"</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-c1">4</span>, <span class="pl-s1">pad</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)           <span class="pl-c"># "23.2.0.0"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">compatible</span>(<span class="pl-s">"1.4.8"</span>, <span class="pl-s">"1.4.5"</span>)                  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">matches</span>(<span class="pl-s">"1.2.3"</span>, <span class="pl-s">"1.2.*"</span>)                     <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_all_requirements</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-s">"major()==23,minor()&gt;=2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)  <span class="pl-c"># True</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_one_requirement</span>(<span class="pl-s">"23.2.1"</span>, <span class="pl-s">"prefix(2)==23.2"</span>, <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>)      <span class="pl-c"># True</span></pre></div>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Mode</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">legacy</code></td>
+<td>Historical parsing and comparisons: <code class="notranslate">1.2 &lt; 1.2.0</code>; <code class="notranslate">rc1</code> and <code class="notranslate">rc.1</code> normalize alike</td>
+</tr>
+<tr>
+<td><code class="notranslate">semver</code></td>
+<td>SemVer suffix precedence with variable-length, zero-padded releases: <code class="notranslate">1.2 == 1.2.0</code>; <code class="notranslate">rc1</code> differs from <code class="notranslate">rc.1</code></td>
+</tr>
+<tr>
+<td><code class="notranslate">pep440</code></td>
+<td>Python version normalization and specifiers, including epochs, pre/post/dev releases and local labels</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Existing parsing/comparison APIs default to <code class="notranslate">legacy</code>; component helpers, <code class="notranslate">compatible</code> and <code class="notranslate">matches</code><br>
+default to <code class="notranslate">semver</code>. Pass a mode explicitly when sharing parsed values or requirements. In Python<br>
+mode, direct version precedence and requirement clauses have different rules: <code class="notranslate">1.0.post1</code> sorts<br>
+after <code class="notranslate">1.0</code>, but does not satisfy <code class="notranslate">&gt;1.0</code>.</p>
+<p dir="auto">Requirements use <code class="notranslate">&lt;</code>, <code class="notranslate">&lt;=</code>, <code class="notranslate">&gt;</code>, <code class="notranslate">&gt;=</code>, <code class="notranslate">==</code>, <code class="notranslate">!=</code>, <code class="notranslate">~=</code> and the library's <code class="notranslate">!~=</code>, <code class="notranslate">~~=</code>, <code class="notranslate">!~~=</code><br>
+extensions. <code class="notranslate">~=1.2</code> permits compatible 1.x releases from 1.2; <code class="notranslate">~~=1.2.*</code> selects the 1.2 prefix with<br>
+a lower bound at 1.2. <code class="notranslate">==1.2.*</code> is prefix matching without that extra lower bound. Function calls require parentheses. Bare identifiers read a caller-supplied <code class="notranslate">constants</code> dictionary;<br>
+<code class="notranslate">major==23</code> works when that dictionary binds <code class="notranslate">major</code>, while <code class="notranslate">major()==23</code> always calls the library<br>
+helper. Functions accept an implied candidate, such as <code class="notranslate">components(start=1,end=3)==2.1</code>.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-s1">candidate</span> <span class="pl-c1">=</span> <span class="pl-s">"23.2.1"</span>
+<span class="pl-s1">versions</span>.<span class="pl-c1">check_all_requirements</span>(
+    <span class="pl-s1">candidate</span>,
+    <span class="pl-s">"major==23,minor&gt;=2"</span>,
+    <span class="pl-s1">constants</span><span class="pl-c1">=</span>{<span class="pl-s">"major"</span>: <span class="pl-s1">versions</span>.<span class="pl-c1">major</span>(<span class="pl-s1">candidate</span>), <span class="pl-s">"minor"</span>: <span class="pl-s1">versions</span>.<span class="pl-c1">minor</span>(<span class="pl-s1">candidate</span>)},
+    <span class="pl-s1">mode</span><span class="pl-c1">=</span><span class="pl-s">"semver"</span>,
+)  <span class="pl-c"># True</span></pre></div>
+<p dir="auto">Bindings also work inside calls, such as <code class="notranslate">prefix(width)</code>. Parsing retains references; callers can<br>
+reuse parsed requirements and supply fresh bindings for each candidate. Unknown names fail when<br>
+checked, and a constant never replaces a callable function.</p>
+<p dir="auto">The <a href="docs/versions.html">versions reference</a> documents every API, all three modes, parsing/normalization,<br>
+metadata, compatible-release precision, function arguments, errors and prerelease behavior. The<br>
+modes use <a href="https://semver.org/" rel="nofollow">SemVer</a> and the<br>
+<a href="https://packaging.python.org/en/latest/specifications/version-specifiers/" rel="nofollow">Python version specification</a><br>
+with the documented differences and extensions.</p>
+<h2 dir="auto" id="paths">Paths</h2>
+<p dir="auto"><a href="docs/paths.html"><code class="notranslate">bzl/paths</code></a> provides lexical normalization, parent collapse, joining, absolute-path<br>
+tests and trailing-separator helpers. Choose Unix defaults or <code class="notranslate">_windows</code> variants explicitly;<br>
+results do not depend on the Bazel host.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-en">load</span>(<span class="pl-s">"@mboworks_bzl//bzl/paths:paths.bzl"</span>, <span class="pl-s">"paths"</span>)
+
+<span class="pl-s1">paths</span>.<span class="pl-c1">normalize</span>(<span class="pl-s">"a/./b/../c"</span>)                 <span class="pl-c"># "a/b/../c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">normalize</span>(<span class="pl-s">"a/./b/../c"</span>, <span class="pl-s1">collapse</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)  <span class="pl-c"># "a/c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"/c"</span>)                      <span class="pl-c"># "a/b/c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">join_respect_absolute</span>(<span class="pl-s">"a/b"</span>, <span class="pl-s">"/c"</span>)     <span class="pl-c"># "/c"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">normalize_windows</span>(<span class="pl-s">"C:/a//b"</span>)            <span class="pl-c"># "C:\\a\\b"</span>
+<span class="pl-s1">paths</span>.<span class="pl-c1">ensure_trailing_slash</span>(<span class="pl-s">"a//b/"</span>)          <span class="pl-c"># "a/b/"</span></pre></div>
+<p dir="auto"><code class="notranslate">normalize</code> removes redundant separators and <code class="notranslate">.</code> but preserves <code class="notranslate">..</code> unless collapse is requested.<br>
+<code class="notranslate">join</code> keeps earlier components; <code class="notranslate">join_respect_absolute</code> resets at the last absolute part. Windows<br>
+mode treats <code class="notranslate">C:foo</code> as <code class="notranslate">C:\foo</code>, so Windows drive-relative semantics are unsupported. These<br>
+functions manipulate strings and do not resolve symlinks or inspect the filesystem.</p>
+<p dir="auto">The <a href="docs/paths.html">paths reference</a> documents all generic and Windows APIs, root/UNC handling,<br>
+empty values, joining rules, collapse behavior and trailing-separator fallbacks.</p>
+<h2 dir="auto" id="installation">Installation</h2>
+<p dir="auto">The library is available as a Bazel module (bzlmod) and supports macOS, Ubuntu<br>
+and Windows with Bazel versions 7.x, 8.x and 9.x (other systems are not tested).<br>
+However, future versions may drop Windows support.</p>
+<h3 dir="auto" id="for-modulebazel">For MODULE.bazel</h3>
+<p dir="auto">See <a href="https://github.com/mboworks/bzl/releases">mboworks/bzl releases</a> to replace the version number.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-en">bazel_dep</span>(<span class="pl-s1">name</span> <span class="pl-c1">=</span> <span class="pl-s">"mboworks_bzl"</span>, <span class="pl-s1">version</span> <span class="pl-c1">=</span> <span class="pl-s">"0.5.1"</span>)</pre></div>
+<h3 dir="auto" id="dependencies">Dependencies</h3>
+<ul dir="auto">
+<li><code class="notranslate">bazel_skylib</code>.</li>
+</ul></main><footer>Release snapshot · 786019d1a603dcec0ab6fe5cbd99942e0ff2fda6</footer></body></html>

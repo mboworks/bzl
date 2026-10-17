@@ -1,0 +1,105 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CHANGELOG.md - bzl 0.6.0</title><style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 76rem; margin: auto; padding: 2rem; }
+a { color: light-dark(#075da8, #8cc8ff); }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #888; }
+pre { padding: 1rem; overflow: auto; background: light-dark(#f3f5f7, #20252b); }
+code { font-size: .9em; } img { max-width: 100%; }
+table { display: block; overflow: auto; border-collapse: collapse; }
+th, td { border: 1px solid #888; padding: .4rem .7rem; }
+blockquote { border-left: 4px solid #888; margin-left: 0; padding-left: 1rem; }
+</style><body><nav><a href="/bzl/site/tag/0.6.0/">Home</a><a href="/bzl/site/tag/0.6.0/documents.html">Documentation</a><a href="https://github.com/mboworks/bzl/releases/tag/0.6.0">Release &amp; downloads</a><a href="https://github.com/mboworks/bzl/tree/786019d1a603dcec0ab6fe5cbd99942e0ff2fda6">Source</a></nav><p>bzl 0.6.0</p><main><h1 dir="auto" id="060">0.6.0</h1>
+<ul dir="auto">
+<li>
+<p dir="auto">Document both public modules in <code class="notranslate">docs/versions.md</code> and <code class="notranslate">docs/paths.md</code>, including complete legacy,<br>
+SemVer and PEP 440 mode contracts; keep usage overviews in the root README.</p>
+</li>
+<li>
+<p dir="auto">Add opt-in <code class="notranslate">mode = "pep440"</code> for Python version parsing, precedence, and specifier clauses;<br>
+preserve legacy and SemVer defaults. Include a developer-only packaging conformance oracle.</p>
+</li>
+<li>
+<p dir="auto">Add <code class="notranslate">versions.prefix</code>, <code class="notranslate">versions.components</code>, <code class="notranslate">versions.compatible</code>, and <code class="notranslate">versions.matches</code>.</p>
+</li>
+<li>
+<p dir="auto">Support compatible-release (<code class="notranslate">~=</code>), negated compatible (<code class="notranslate">!~=</code>), extended wildcard-compatible<br>
+(<code class="notranslate">~~=</code>), and negated extended (<code class="notranslate">!~~=</code>) requirements, plus trailing <code class="notranslate">.*</code> matching/exclusion<br>
+(<code class="notranslate">==</code>, <code class="notranslate">!=</code>). Extended compatibility adds a stable lower bound to prefix matching.</p>
+</li>
+<li>
+<p dir="auto">Add <code class="notranslate">versions.major</code>, <code class="notranslate">versions.minor</code>, <code class="notranslate">versions.patch</code> and allowlisted, nested version-function<br>
+expressions with an implied or explicit candidate and literal positional/keyword arguments.</p>
+</li>
+<li>
+<p dir="auto">Add explicit <code class="notranslate">constants</code> dictionaries to requirement checkers for caller-defined names, resolved<br>
+at evaluation time on expression left sides and inside function arguments. Functions keep call<br>
+syntax (<code class="notranslate">major()</code>), independent of constants with the same name (<code class="notranslate">major</code>).</p>
+</li>
+<li>
+<p dir="auto">Add explicit <code class="notranslate">mode = "semver"</code> to parsing, comparisons, and requirements; existing APIs keep<br>
+<code class="notranslate">mode = "legacy"</code> by default. SemVer mode zero-pads release comparisons and preserves distinct<br>
+prerelease identifiers such as <code class="notranslate">rc1</code> and <code class="notranslate">rc.1</code>, with lexical <code class="notranslate">rc10 &lt; rc2</code> ordering.</p>
+</li>
+<li>
+<p dir="auto">Fetch shallow publication snapshots and report complete site size with a 250 MB advisory budget.</p>
+</li>
+</ul>
+<h1 dir="auto" id="051">0.5.1</h1>
+<ul dir="auto">
+<li>Transfer the canonical repository from <code class="notranslate">helly25/bzl</code> to <code class="notranslate">mboworks/bzl</code> and<br>
+publish future releases under the new <code class="notranslate">mboworks_bzl</code> module name.</li>
+</ul>
+<h1 dir="auto" id="050">0.5.0</h1>
+<ul dir="auto">
+<li>[BC] Dropped legacy <code class="notranslate">WORKSPACE</code> support; the module is now bzlmod-only.</li>
+</ul>
+<h1 dir="auto" id="044">0.4.4</h1>
+<ul dir="auto">
+<li>Re-release of <code class="notranslate">0.4.3</code> with no functional changes (release/CI tooling only).</li>
+</ul>
+<h1 dir="auto" id="043">0.4.3</h1>
+<ul dir="auto">
+<li>Added <code class="notranslate">paths.ensure_trailing_slash</code> and <code class="notranslate">paths.ensure_trailing_slash_windows</code> to append a single trailing separator, handling roots and existing trailing separators. An optional <code class="notranslate">default_if_empty</code> controls the fallback for empty input (e.g. <code class="notranslate">"/"</code> to anchor at the platform root).</li>
+</ul>
+<h1 dir="auto" id="042">0.4.2</h1>
+<ul dir="auto">
+<li>Fix release naming and tagging scheme back to "1.2.3" style without 'v' prefix.</li>
+</ul>
+<h1 dir="auto" id="041">0.4.1</h1>
+<ul dir="auto">
+<li>Added explicit Windows and Bazel 9 support for the Bazel module releases.</li>
+</ul>
+<h1 dir="auto" id="040">0.4.0</h1>
+<ul dir="auto">
+<li>Implement paths library.</li>
+</ul>
+<h1 dir="auto" id="031">0.3.1</h1>
+<ul dir="auto">
+<li>Fixed some cases of comparisons that contain '-' or '+' against versions that are missing those parts.</li>
+</ul>
+<h1 dir="auto" id="030">0.3.0</h1>
+<ul dir="auto">
+<li>Added <code class="notranslate">skip_build</code> parameter to control whether comparisons adhere to Semver-10.</li>
+<li>[BC] Changed <code class="notranslate">version.parse</code> and <code class="notranslate">version.compare</code> to take parameter <code class="notranslate">error</code> as a keyword only parameter.</li>
+</ul>
+<h1 dir="auto" id="021">0.2.1</h1>
+<ul dir="auto">
+<li>Improved support for mixed type comparisons.</li>
+</ul>
+<h1 dir="auto" id="020">0.2.0</h1>
+<ul dir="auto">
+<li>Added support for parsing out 'pre_release' and 'build' components.</li>
+<li>Added <code class="notranslate">versions.compare</code>.</li>
+<li>Added 'pre_release' and 'build' support for comparisons.</li>
+<li>Added CI run for Windows (may be dropped at any future point).</li>
+</ul>
+<h1 dir="auto" id="012">0.1.2</h1>
+<ul dir="auto">
+<li>Fixed workspace file to work for transitive repos.</li>
+</ul>
+<h1 dir="auto" id="011">0.1.1</h1>
+<ul dir="auto">
+<li>Fixed some naming issues and remove mbo references.</li>
+</ul>
+<h1 dir="auto" id="010">0.1.0</h1>
+<p dir="auto">Initial version.</p></main><footer>Release snapshot · 786019d1a603dcec0ab6fe5cbd99942e0ff2fda6</footer></body></html>
