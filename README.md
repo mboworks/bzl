@@ -76,8 +76,9 @@ Provides:
 - `load("@mboworks_bzl//bzl/versions:versions.bzl", _versions = "versions")`
   - `versions` is a single import structure:
     - `parse`: Parses a version while preserving its release component count.
-    - `prefix(version, count)`: Returns at most `count` release components as a dot-separated string.
-    - `components(version, *, start = 0, end = None, pad = False)`: Returns a release component slice.
+    - `major(version, *, mode = "semver")`, `minor(...)`, `patch(...)`: Individual integer release components.
+    - `prefix(version, count, *, mode = "semver")`: Returns at most `count` release components as a dot-separated string.
+    - `components(version, *, start = 0, end = None, pad = False, mode = "semver")`: Returns a release component slice.
     - `compatible(version, required, *, skip_build = True, mode = "semver")`: Tests a compatible-release requirement.
     - `matches(version, pattern, *, skip_build = True, mode = "semver")`: Tests an exact version or a trailing `.*` pattern.
     - `ge`: Implements `L >= R`.
@@ -208,8 +209,7 @@ versions.check_one_requirement("23.1.9", "minor>=2", mode = "semver")  # False
 versions.check_one_requirement("23.2.1.9", "patch==1", mode = "semver")  # True
 ```
 
-`major`, `minor`, and `patch` select indices 0, 1, and 2; they are component references, not functions
-or release prefixes. Missing minor or patch components are zero. The operand must be a single
+`major`, `minor`, and `patch` select indices 0, 1, and 2; they are aliases for `major()`, `minor()`, and `patch()` on the candidate, not release prefixes. Missing minor or patch components are zero. The operand must be a single
 non-negative integer and the operator one of `==`, `!=`, `<`, `<=`, `>`, `>=`. A named clause needs
 an explicit operator; `major=23`, wildcards, suffixes, multi-part operands and compatible-release
 operators on a single component fail. Use ordinary version clauses for compatible release or prefix
@@ -219,6 +219,33 @@ matching, and `prefix`/`components` for explicit release slices.
 plain records keep their existing `op`/`version` shape. Both string and parsed requirement checks
 support the names, under either comparison mode. These names are library extensions to Python's
 specifier syntax and can be passed through by a selector such as `latest:major==23,minor>=2`.
+
+### Version-function expressions
+
+The ordinary Starlark helpers `versions.major(version)`, `minor(version)`, and `patch(version)`
+return integer components; missing minor/patch components are zero. Requirement clauses support
+calls to `major`, `minor`, `patch`, `prefix`, and `components` with an implied candidate when the
+version is omitted. Bare names remain shorthand for zero-argument component calls.
+
+```starlark
+versions.major("23.2.1")  # 23
+versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode = "semver")  # True
+versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode = "semver")  # True
+versions.check_one_requirement("23.2.1", "components(start=1,end=3)==2.1", mode = "semver")  # True
+versions.check_one_requirement("23.2.1", "major(prefix(2))==23", mode = "semver")  # True
+```
+
+`prefix(2)` and `prefix(count=2)` use the candidate. Explicit versions use forms such as
+`prefix("24.3.2", 2)` or `components("24.3.2", start=1, end=3)`. Arguments can be integer,
+quoted-string, boolean and `None` literals, keyword arguments, or nested calls to these five
+functions. Positional arguments precede keywords. The expression inherits the requirement mode;
+`mode` cannot be overridden inside it. Variables, arithmetic, attributes and arbitrary Starlark
+code are outside this grammar. Top-level commas combine clauses; commas inside calls or quoted
+literals remain part of the expression.
+
+Parsed function clauses carry an opaque `expression` description; bare and zero-argument component
+calls use the same `component` record. Pass parsed records through to requirement checks with the
+same mode, rather than interpreting their function metadata independently.
 
 ## Paths
 

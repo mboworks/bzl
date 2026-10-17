@@ -17,6 +17,8 @@
 SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
 """
 
+load(":expression.bzl", "expression")
+
 # Longest tokens first: !~~= must never be consumed as !~= or ~=.
 _NAMED_COMPONENTS = {"major": 0, "minor": 1, "patch": 2}
 _COMPONENT_OPERATORS = ["==", "!=", ">", ">=", "<", "<="]
@@ -217,7 +219,7 @@ def _cmp(lhs, rhs):
 def _release_components(parsed):
     return parsed[:min(_list_find(parsed, "-", len(parsed)), _list_find(parsed, "+", len(parsed)))]
 
-def _version_components(version, *, start = 0, end = None, pad = False):
+def _version_components(version, *, start = 0, end = None, pad = False, mode = "semver"):
     """Returns selected release components as a dot-separated string.
 
     Args:
@@ -225,12 +227,14 @@ def _version_components(version, *, start = 0, end = None, pad = False):
         start: Inclusive index, relative to the original length when negative.
         end: Exclusive index; None uses the original length.
         pad: Extend with zeros to an explicitly supplied positive end before slicing.
+        mode: Version comparison mode, inherited by selector expressions.
 
     Returns:
         Selected release components, or an empty string for an empty selection.
     """
     if type(start) != "int" or (end != None and type(end) != "int"):
         fail("Component indices must be integers or end = None.")
+    _check_mode(mode)
     parts = _release_components(_release_parse_version(version))
     size = len(parts)
     start = max(0, size + start) if start < 0 else start
@@ -239,19 +243,65 @@ def _version_components(version, *, start = 0, end = None, pad = False):
         parts = parts + [0] * (end - size)
     return ".".join([str(part) for part in parts[start:end]])
 
-def _version_prefix(version, count):
+def _version_prefix(version, count, *, mode = "semver"):
     """Returns at most count release components as a dot-separated string.
 
     Args:
         version: A version accepted by `parse`; suffixes are excluded.
         count: Non-negative number of components to select, without padding.
+        mode: Version comparison mode, inherited by selector expressions.
 
     Returns:
         The release prefix, or an empty string when count is zero.
     """
     if type(count) != "int" or count < 0:
         fail("Prefix count must be a non-negative integer.")
-    return _version_components(version, end = count)
+    return _version_components(version, end = count, mode = mode)
+
+def _named_component(version, name, *, mode = "semver"):
+    if name not in _NAMED_COMPONENTS:
+        fail("Unknown named version component: '{}'".format(name))
+    release = _release_components(_parse_version(version, mode = mode))
+    if not release:
+        fail("Named version components require a non-empty numeric release.")
+    index = _NAMED_COMPONENTS[name]
+    value = release[index] if index < len(release) else 0
+    if type(value) != "int" or value < 0:
+        fail("Named version components require non-negative integers.")
+    return value
+
+def _version_major(version, *, mode = "semver"):
+    """Returns the integer major component of version under the selected mode."""
+    return _named_component(version, "major", mode = mode)
+
+def _version_minor(version, *, mode = "semver"):
+    """Returns the integer minor component, or zero when omitted."""
+    return _named_component(version, "minor", mode = mode)
+
+def _version_patch(version, *, mode = "semver"):
+    """Returns the integer patch component, or zero when omitted."""
+    return _named_component(version, "patch", mode = mode)
+
+def _expression_value(nodes, version, mode):
+    functions = {
+        "components": _version_components,
+        "major": _version_major,
+        "minor": _version_minor,
+        "patch": _version_patch,
+        "prefix": _version_prefix,
+    }
+    results = {}
+    for index in range(len(nodes) - 1, -1, -1):
+        node = nodes[index]
+        args = [results[arg.node] if hasattr(arg, "node") else arg.value for arg in node.args]
+        kwargs = {key: results[arg.node] if hasattr(arg, "node") else arg.value for key, arg in node.kwargs.items()}
+        if "version" not in kwargs:
+            if node.function == "prefix" and len(args) == 1 and "count" not in kwargs:
+                args = [version] + args
+            elif not args:
+                kwargs["version"] = version
+        results[index] = functions[node.function](mode = mode, *args, **kwargs)
+    return results[0]
 
 def _constraint_parse(version, *, skip_build = True):
     # Validate raw suffix identifiers before converting numeric strings; this
@@ -516,15 +566,10 @@ def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "l
         fail("Bad comparator: '{op}'.".format(op = op))
 
 def _check_one_requirement_struct(version, requirement, *, skip_build = True, mode = "legacy"):
-    component = getattr(requirement, "component", None)
-    if component != None:
-        if component not in _NAMED_COMPONENTS:
-            fail("Unknown named version component: '{}'".format(component))
-        release = _release_components(_parse_version(version, mode = mode))
-        index = _NAMED_COMPONENTS[component]
-        version = release[index] if index < len(release) else 0
-        if type(version) != "int" or version < 0:
-            fail("Named version components require non-negative integers.")
+    if hasattr(requirement, "expression"):
+        version = _expression_value(requirement.expression, version, mode)
+    elif hasattr(requirement, "component"):
+        version = _named_component(version, requirement.component, mode = mode)
     return _version_compare(
         version,
         requirement.op,
@@ -556,52 +601,55 @@ def _check_all_requirements(version, requirements, *, skip_build = True, mode = 
     if type(requirements) == "string":
         return all([
             _check_one_requirement(version, r.strip(), skip_build = skip_build, mode = mode)
-            for r in requirements.split(",")
+            for r in expression.clauses(requirements)
         ])
     fail("Requirements must be 'list' or 'string'.")
 
-def _split_requirement(requirement):
-    value = requirement.strip()
-    for comparator in _REQUIREMENT_OPERATORS:
-        if value.startswith(comparator):
-            return comparator, value[len(comparator):].strip()
-    return "==", value
-
 def _parse_split_requirement(req, *, mode = "legacy"):
-    for component in _NAMED_COMPONENTS:
-        if not req.startswith(component):
-            continue
-        condition = req[len(component):].strip()
-        if not any([condition.startswith(op) for op in _COMPONENT_OPERATORS]):
-            fail("Named version component '{}' requires ==, !=, <, <=, >, or >=.".format(component))
-        op, value = _split_requirement(condition)
-        if op not in _COMPONENT_OPERATORS or not value or not value.isdigit():
-            fail("Named version component '{}' requires a non-negative integer operand.".format(component))
-        return struct(component = component, op = op, version = [int(value)])
-    op, value = _split_requirement(req)
+    parts = expression.comparison(req, _REQUIREMENT_OPERATORS)
+    left = parts.left
+    if not left and any([req.startswith(name) for name in _NAMED_COMPONENTS]):
+        fail("Named version component requires ==, !=, <, <=, >, or >=.")
+    op = parts.op
+    value = parts.right
+    fields = {}
+    if left in _NAMED_COMPONENTS:
+        fields["component"] = left
+    elif left:
+        nodes = expression.parse(left)
+        if len(nodes) == 1 and nodes[0].function in _NAMED_COMPONENTS and not nodes[0].args and not nodes[0].kwargs:
+            fields["component"] = nodes[0].function
+        else:
+            fields["expression"] = nodes
+    if "component" in fields:
+        if op not in _COMPONENT_OPERATORS:
+            fail("Named version component '{}' requires ==, !=, <, <=, >, or >=.".format(fields["component"]))
+        if not value or not value.isdigit():
+            fail("Named version component '{}' requires a non-negative integer operand.".format(fields["component"]))
+        return struct(op = op, version = [int(value)], **fields)
     if _has_wildcard(value):
         if op not in ["==", "!=", "~~=", "!~~="]:
             fail("Wildcard requirements only support '==', '!=', '~~=', and '!~~='.")
-
-        # Validate before parsing so malformed suffix wildcards cannot be hidden
-        # by legacy normalization. Preserve the existing op/version struct shape.
-        return struct(op = op, version = _match_prefix(value) + ["*"])
+        return struct(op = op, version = _match_prefix(value) + ["*"], **fields)
     if op in ["~~=", "!~~="]:
         fail("Extended compatible requirements need a single trailing '.*'.")
-    return struct(op = op, version = _parse_version(value.strip(), mode = mode))
+    return struct(op = op, version = _parse_version(value.strip(), mode = mode), **fields)
 
 def _parse_requirements(requirements, *, mode = "legacy"):
     """Parses requirement strings; pass the same mode to check_all_requirements."""
     _check_mode(mode)
     return [
         _parse_split_requirement(req.strip(), mode = mode)
-        for req in requirements.split(",")
+        for req in expression.clauses(requirements)
     ]
 
 versions = struct(
     parse = _parse_version,
     components = _version_components,
     prefix = _version_prefix,
+    major = _version_major,
+    minor = _version_minor,
+    patch = _version_patch,
     compatible = _version_compatible,
     matches = _version_matches,
     ge = _version_ge,

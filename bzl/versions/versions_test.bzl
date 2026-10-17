@@ -731,6 +731,37 @@ def _versions_named_components_test(ctx):
         ])
     return unittest.end(env)
 
+def _versions_functions_test(ctx):
+    env = unittest.begin(ctx)
+    for version, expected in [("23.2.1", [23, 2, 1]), ("23", [23, 0, 0]), ("23.2", [23, 2, 0]), ("23.2.1.9-rc1+build", [23, 2, 1]), ([23, 2, 1], [23, 2, 1])]:
+        _assert_eq(env, [versions.major(version), versions.minor(version), versions.patch(version)], expected)
+    for candidate, clause, expected in [
+        ("23.2.1", "major()==23,minor()>=2", True),
+        ("23.1.9", "major()==23,minor()>=2", False),
+        ("23.2.1", "prefix(2)==23.2", True),
+        ("23.2.1", "prefix(count=2)==23.2", True),
+        ("23.2.1", 'prefix("24.3.2", 2)==24.3', True),
+        ("23.2.1", "prefix('24.3.2', count=2)==24.3", True),
+        ("23.2.1", 'prefix(version="24.3.2", count=2)==24.3', True),
+        ("23.2.1", "components(start=1,end=3)==2.1", True),
+        ("23.2.1", "components(start=-2,end=-1)==2", True),
+        ("23.2", "components(end=3,pad=True)==23.2.0", True),
+        ("23.2.1", "components()==23.2.1", True),
+        ("23.2.1", 'components("24.3.2", start=1, end=3)==3.2', True),
+        ("23.2.1", "major(prefix(2))==23", True),
+        ("23.2.1", "prefix(components(start=1,end=3),1)==2", True),
+        ("23.2.1", 'major(version="24.3")==24', True),
+        ("23.2.1", 'minor("24.3")==3', True),
+        ("23.2.1", "prefix(2)~=23.1", True),
+        ("23.2.1", "prefix(2)~~=23.*", True),
+        ("23.2.1", "components(start=1,end=None)==2.1", True),
+    ]:
+        for mode in ["legacy", "semver"]:
+            _assert_eq(env, versions.check_all_requirements(candidate, clause, mode = mode), expected, "{}: {} {}".format(mode, candidate, clause))
+            _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(clause, mode = mode), mode = mode), expected)
+    _assert_eq(env, versions.parse_requirements("major()==23"), versions.parse_requirements("major==23"))
+    return unittest.end(env)
+
 def _invalid_version_operation_impl(ctx):
     if ctx.attr.operation == "compatible":
         versions.compatible("1.4.5", ctx.attr.required)
@@ -777,6 +808,7 @@ versions_semver_precedence_test = unittest.make(_versions_semver_precedence_test
 versions_modes_test = unittest.make(_versions_modes_test)
 versions_compatible_operators_test = unittest.make(_versions_compatible_operators_test)
 versions_named_components_test = unittest.make(_versions_named_components_test)
+versions_functions_test = unittest.make(_versions_functions_test)
 versions_ge_test = unittest.make(_versions_ge_test)
 versions_gt_test = unittest.make(_versions_gt_test)
 versions_le_test = unittest.make(_versions_le_test)
@@ -804,6 +836,7 @@ def versions_test_suite(name = "versions_tests"):
         versions_modes_test,
         versions_compatible_operators_test,
         versions_named_components_test,
+        versions_functions_test,
         versions_ge_test,
         versions_gt_test,
         versions_le_test,
@@ -853,6 +886,16 @@ def versions_test_suite(name = "versions_tests"):
         ("named_suffix", "extended_parsed", "patch==1-rc1", "non-negative integer operand"),
         ("named_negative", "extended_parsed", "minor>=-1", "non-negative integer operand"),
         ("named_empty", "extended_parsed", "major==", "non-negative integer operand"),
+        ("function_unknown", "extended", "unknown()==23", "Unknown version function"),
+        ("function_unbalanced", "extended", "prefix(2==23", "Unbalanced version expression"),
+        ("function_duplicate_keyword", "extended", "prefix(count=2,count=3)==23", "duplicate version function keyword"),
+        ("function_positional_after_keyword", "extended", "prefix(count=2,3)==23", "must precede"),
+        ("function_empty_argument", "extended", "prefix(,2)==23", "Invalid version function argument"),
+        ("function_mode_override", "extended", "major(mode='legacy')==23", "version function keyword"),
+        ("function_expression", "extended", "prefix(1+1)==23", "arguments must be"),
+        ("function_string_unclosed", "extended", "major('23)==23", "Unbalanced version expression"),
+        ("function_bad_count", "extended", "prefix(-1)==23", "non-negative integer"),
+        ("function_nonliteral", "extended", "prefix(variable)==23", "arguments must be"),
         ("unknown_mode", "mode", "", "Version mode must be"),
         ("negative_prefix", "prefix", "", "non-negative integer"),
         ("invalid_index", "components", "", "Component indices must be integers"),

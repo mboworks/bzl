@@ -4,6 +4,8 @@
 - Support compatible-release (`~=`), negated compatible (`!~=`), extended wildcard-compatible
   (`~~=`), and negated extended (`!~~=`) requirements, plus trailing `.*` matching/exclusion
   (`==`, `!=`). Extended compatibility adds a stable lower bound to prefix matching.
+- Add `versions.major`, `versions.minor`, `versions.patch` and allowlisted, nested version-function
+  expressions with implied candidate arguments and bare-name aliases.
 - Add `major`, `minor`, and `patch` integer component references in requirement clauses, including
   mixed named/plain expressions such as `major==23,minor>=2,!=23.2.1`.
 - Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep
