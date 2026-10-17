@@ -17,6 +17,9 @@
 SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
 """
 
+# Longest tokens first: !~~= must never be consumed as !~= or ~=.
+_REQUIREMENT_OPERATORS = ["!~~=", "~~=", "!~=", "~=", ">=", "<=", "==", "!=", ">", "<"]
+
 def _maybe_int(value):
     if type(value) == "string" and value.isdigit():
         return int(value)
@@ -372,6 +375,17 @@ def _version_compatible(version, required, *, skip_build = True, mode = "semver"
         fail("A compatible release requirement needs at least two release components.")
     return _version_matches(candidate, release[:-1] + ["*"], mode = mode) and _version_cmp(candidate, minimum, skip_build = skip_build, mode = mode) >= 0
 
+def _version_extended_compatible(version, pattern, *, skip_build = True, mode = "semver"):
+    # This extension adds a stable lower bound to prefix matching. Unlike ==1.2.*,
+    # ~~=1.2.* excludes prereleases of 1.2, while admitting later matching cores.
+    prefix = _match_prefix(pattern)
+    return _version_matches(version, pattern, skip_build = skip_build, mode = mode) and _version_cmp(
+        version,
+        prefix,
+        skip_build = skip_build,
+        mode = mode,
+    ) >= 0
+
 def _extra_cmp(lhs, rhs):
     """Comparisons respecting `None`, "-" and "+"."""
     if _maybe_int(lhs) == _maybe_int(rhs):
@@ -470,12 +484,18 @@ def _version_ne(version_lhs, version_rhs, *, skip_build = True, mode = "legacy")
 def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "legacy"):
     """Implements `lhs OP rhs` using the selected comparison mode."""
     _check_mode(mode)
+    if op in ["~~=", "!~~="]:
+        result = _version_extended_compatible(lhs, rhs, skip_build = skip_build, mode = mode)
+        return result if op == "~~=" else not result
+    if op in ["~=", "!~="] and not _has_wildcard(rhs):
+        result = _version_compatible(lhs, rhs, skip_build = skip_build, mode = mode)
+        return result if op == "~=" else not result
     if _has_wildcard(rhs):
         if op == "==":
             return _version_matches(lhs, rhs, skip_build = skip_build, mode = mode)
         elif op == "!=":
             return not _version_matches(lhs, rhs, skip_build = skip_build, mode = mode)
-        fail("Wildcard requirements only support '==' and '!='.")
+        fail("Wildcard requirements only support '==', '!=', '~~=', and '!~~='.")
     if op == ">=":
         return _version_ge(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == "<=":
@@ -488,8 +508,6 @@ def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "l
         return _version_eq(lhs, rhs, skip_build = skip_build, mode = mode)
     elif op == "!=":
         return _version_ne(lhs, rhs, skip_build = skip_build, mode = mode)
-    elif op == "~=":
-        return _version_compatible(lhs, rhs, skip_build = skip_build, mode = mode)
     elif error:
         fail(error)
     else:
@@ -508,24 +526,12 @@ def _check_one_requirement_struct(version, requirement, *, skip_build = True, mo
 def _check_one_requirement(version, requirement, *, skip_build = True, mode = "legacy"):
     """Version comparison of the given `version` against a `requirement` string.
 
-    The requirement has the form:
-        ("<", "<=", ">", ">=", "!=", "==", "~=") <digit>+ ("." <digit>+)+
-
-    Only '==' and '!=' accept a trailing '.*' release prefix pattern.
-    '~=' uses compatible-release semantics. Release comparisons zero-pad missing
-    components in semver mode; legacy mode retains historical comparisons.
+    Compatible operators are ~= and !~=; wildcard-compatible extensions are
+    ~~= and !~~=. Exact matching/exclusion uses == and !=, optionally with .*.
+    Ordering uses <, <=, >, >=. All operators are requirement-string tokens.
     """
     if type(requirement) == "string":
-        requirement = requirement.strip()
-        if len(requirement) >= 2 and requirement[0:2] in [">=", "<=", "==", "!=", "~="]:
-            op = requirement[0:2]
-            rhs = requirement[2:].strip()
-        elif len(requirement) >= 1 and requirement[0] in [">", "<"]:
-            op = requirement[0]
-            rhs = requirement[1:].strip()
-        else:
-            op = "=="
-            rhs = requirement.strip()
+        op, rhs = _split_requirement(requirement)
         return _version_compare(
             version,
             op,
@@ -551,21 +557,24 @@ def _check_all_requirements(version, requirements, *, skip_build = True, mode = 
         ])
     fail("Requirements must be 'list' or 'string'.")
 
+def _split_requirement(requirement):
+    value = requirement.strip()
+    for comparator in _REQUIREMENT_OPERATORS:
+        if value.startswith(comparator):
+            return comparator, value[len(comparator):].strip()
+    return "==", value
+
 def _parse_split_requirement(req, *, mode = "legacy"):
-    op = "=="
-    value = req
-    for comparator in ["~=", ">=", "<=", "==", "!=", ">", "<"]:
-        if req.startswith(comparator):
-            op = comparator
-            value = req[len(comparator):].strip()
-            break
+    op, value = _split_requirement(req)
     if _has_wildcard(value):
-        if op not in ["==", "!="]:
-            fail("Wildcard requirements only support '==' and '!='.")
+        if op not in ["==", "!=", "~~=", "!~~="]:
+            fail("Wildcard requirements only support '==', '!=', '~~=', and '!~~='.")
 
         # Validate before parsing so malformed suffix wildcards cannot be hidden
         # by legacy normalization. Preserve the existing op/version struct shape.
         return struct(op = op, version = _match_prefix(value) + ["*"])
+    if op in ["~~=", "!~~="]:
+        fail("Extended compatible requirements need a single trailing '.*'.")
     return struct(op = op, version = _parse_version(value.strip(), mode = mode))
 
 def _parse_requirements(requirements, *, mode = "legacy"):

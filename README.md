@@ -158,14 +158,40 @@ remains permissive for historical inputs. Never normalize a requirement with pad
 `compatible`, since that would change its compatibility boundary.
 
 The requirement-string APIs (`compare`, `check_one_requirement`, `check_all_requirements`, and
-`parse_requirements`) support `~=`, `==` and `!=` with trailing `.*`, and the existing `<`, `<=`, `>`,
-`>=` operators. Their default remains legacy precedence; pass `mode = "semver"` for the
+`parse_requirements`) support compatible release `~=`, its negation `!~=`, extended compatible
+release `~~=`, its negation `!~~=`, exact/prefix matching `==` and exclusion `!=`, and ordering
+`<`, `<=`, `>`, `>=`. Their default remains legacy precedence; pass `mode = "semver"` for the
 zero-padded, identifier-preserving semantics described above. A missing operator means `==`. Comma-separated clauses are ANDed, and whitespace
-around clauses and operands is accepted. Wildcards with ordering operators or `~=` fail. These are
-operators in strings, not overloaded Starlark operators:
+around clauses and operands is accepted. These are operators in strings, not overloaded Starlark
+operators:
+
+| Operator | Meaning                                             | Example     | Stable-release equivalent           |
+| -------- | --------------------------------------------------- | ----------- | ----------------------------------- |
+| `~=`     | PEP 440 compatible release boundary                 | `~=1.2`     | `>=1.2, <2.0`                       |
+| `!~=`    | Logical negation of `~=`                            | `!~=1.2`    | Outside the compatible set          |
+| `~~=`    | Extended compatible release with an explicit prefix | `~~=1.2.*`  | `>=1.2, <1.3`                       |
+| `!~~=`   | Logical negation of `~~=`                           | `!~~=1.2.*` | Outside the extended compatible set |
+
+`~~=` and the negated operators are library extensions, not PEP 440 operators. `~~=` requires a
+numeric release prefix followed by a single trailing `.*`. It combines a lower bound at the written
+prefix with whole-component prefix matching. Its prefix keeps prereleases of the next series out,
+just as `~=` does. The range column describes stable releases; prefix boundaries are also enforced
+for prereleases.
+
+In SemVer mode, unlike `==1.2.*`, `~~=1.2.*` excludes `1.2-rc.1` and `1.2.0-rc.1` because they precede the `1.2`
+lower bound. It can still match `1.2.1-rc.1`; collection-level prerelease admission remains the
+caller's policy. Negated operators return the exact logical complement of their positive form,
+without negating malformed-input errors. `versions.compatible()` and `versions.matches()` retain
+their separate meanings; the extended operator adds a lower bound to prefix matching.
+
+Wildcards with ordering operators, `~=`, or `!~=` fail. Exact operands with `~~=` or `!~~=` fail.
+Operators are recognized longest first so `!~~=` is never mistaken for one of its shorter tokens.
 
 ```starlark
 versions.compare("1.4.8", "~=", "1.4.5", mode = "semver")  # True
+versions.compare("2.0", "!~=", "1.2", mode = "semver")     # True
+versions.compare("1.2.9", "~~=", "1.2.*", mode = "semver")  # True
+versions.compare("1.3", "!~~=", "1.2.*", mode = "semver")   # True
 versions.check_one_requirement("1.2.3", "==1.2.*", mode = "semver")  # True
 versions.check_all_requirements("1.4.8", "~=1.4.5,!=1.4.7", mode = "semver")  # True
 requirements = versions.parse_requirements("==1.2.*,!=1.2.4", mode = "semver")

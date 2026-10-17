@@ -637,9 +637,78 @@ def _versions_matches_test(ctx):
     ])
     return unittest.end(env)
 
+def _versions_compatible_operators_test(ctx):
+    env = unittest.begin(ctx)
+    for candidate, required, expected in [
+        ("1.2", "1.2", True),
+        ("1.2.0", "1.2", True),
+        ("1.1.9", "1.2", False),
+        ("1.9.0", "1.2", True),
+        ("2.0.0", "1.2", False),
+        ("1.2-rc.1", "1.2", False),
+        ("1.3-rc.1", "1.2", True),
+        ("2.0-rc.1", "1.2", False),
+        ("1.2.3-rc.1", "1.2.3-rc.1", True),
+        ("1.2.3+build", "1.2.3", True),
+        ("1.3.0", "1.2.3", False),
+    ]:
+        for op, result in [("~=", expected), ("!~=", not expected)]:
+            _assert_eq(env, versions.compare(candidate, op, required, mode = "semver"), result)
+            requirement = " {} {} ".format(op, required)
+            _assert_eq(env, versions.check_one_requirement(candidate, requirement, mode = "semver"), result)
+            _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(requirement, mode = "semver"), mode = "semver"), result)
+    for candidate, pattern, expected in [
+        ("1.2", "1.2.*", True),
+        ("1.2.0", "1.2.*", True),
+        ("1.2.99", "1.2.*", True),
+        ("1.1.99", "1.2.*", False),
+        ("1.3", "1.2.*", False),
+        ("1.20.0", "1.2.*", False),
+        ("1.2-rc.1", "1.2.*", False),
+        ("1.2.0-rc.1", "1.2.*", False),
+        ("1.2.1-rc.1", "1.2.*", True),
+        ("1.3-rc.1", "1.2.*", False),
+        ("1.2+build", "1.2.*", True),
+        ("1", "1.0.*", True),
+        ("1.0", "1.*", True),
+        ("2.0", "1.*", False),
+        ("0.0", "0.*", True),
+        ("0.0-rc.1", "0.*", False),
+        ("1.2.3.0", "1.2.3.*", True),
+        ("1.2.4", "1.2.3.*", False),
+        ("1.2.3.4", "1.2.3.4.*", True),
+        ("1.2.3.5", "1.2.3.4.*", False),
+    ]:
+        for op, result in [("~~=", expected), ("!~~=", not expected)]:
+            _assert_eq(env, versions.compare(candidate, op, pattern, mode = "semver"), result)
+            requirement = " {} {} ".format(op, pattern)
+            _assert_eq(env, versions.check_one_requirement(candidate, requirement, mode = "semver"), result)
+            parsed = versions.parse_requirements(requirement, mode = "semver")
+            _assert_eq(env, versions.check_all_requirements(candidate, parsed, mode = "semver"), result)
+    _assert_eq(env, versions.compare([1, 2, 3], "~~=", [1, 2, "*"], mode = "semver"), True)
+    _assert_eq(env, versions.compare((1, 3), "!~~=", (1, 2, "*"), mode = "semver"), True)
+    _assert_eq(env, versions.check_one_requirement("1.2-rc.1", "==1.2.*", mode = "semver"), True)
+    _assert_eq(env, versions.check_all_requirements("1.2.4", "~~=1.2.*,!~=1.2.5", mode = "semver"), True)
+    _assert_eq(env, versions.check_all_requirements("1.2.5", "~~=1.2.*,!~=1.2.5", mode = "semver"), False)
+    _assert_eq(env, versions.parse_requirements("!~~=1.2.*,~~=2.3.*,!~=3.4,~=4.5", mode = "semver"), [
+        struct(op = "!~~=", version = [1, 2, "*"]),
+        struct(op = "~~=", version = [2, 3, "*"]),
+        struct(op = "!~=", version = [3, 4]),
+        struct(op = "~=", version = [4, 5]),
+    ])
+    for mode in ["legacy", "semver"]:
+        _assert_eq(env, versions.check_one_requirement("1.2.3", "~~=1.2.*", mode = mode), True)
+        _assert_eq(env, versions.check_one_requirement("1.2.3", "!~~=1.2.*", mode = mode), False)
+        _assert_eq(env, versions.check_one_requirement("1.2.3", "!~=1.2", mode = mode), False)
+    return unittest.end(env)
+
 def _invalid_version_operation_impl(ctx):
     if ctx.attr.operation == "compatible":
         versions.compatible("1.4.5", ctx.attr.required)
+    elif ctx.attr.operation == "extended":
+        versions.check_one_requirement("1.2.3", ctx.attr.required, mode = "semver")
+    elif ctx.attr.operation == "extended_parsed":
+        versions.parse_requirements(ctx.attr.required, mode = "semver")
     elif ctx.attr.operation == "mode":
         versions.parse("1.2.3", mode = "unknown")
     elif ctx.attr.operation == "matches":
@@ -677,6 +746,7 @@ versions_compatible_test = unittest.make(_versions_compatible_test)
 versions_matches_test = unittest.make(_versions_matches_test)
 versions_semver_precedence_test = unittest.make(_versions_semver_precedence_test)
 versions_modes_test = unittest.make(_versions_modes_test)
+versions_compatible_operators_test = unittest.make(_versions_compatible_operators_test)
 versions_ge_test = unittest.make(_versions_ge_test)
 versions_gt_test = unittest.make(_versions_gt_test)
 versions_le_test = unittest.make(_versions_le_test)
@@ -702,6 +772,7 @@ def versions_test_suite(name = "versions_tests"):
         versions_matches_test,
         versions_semver_precedence_test,
         versions_modes_test,
+        versions_compatible_operators_test,
         versions_ge_test,
         versions_gt_test,
         versions_le_test,
@@ -724,13 +795,24 @@ def versions_test_suite(name = "versions_tests"):
         ("prerelease_wildcard", "matches", "1.2-rc.*", "single trailing '.*'"),
         ("build_wildcard", "matches", "1.2+build.*", "single trailing '.*'"),
         ("wildcard_build", "matches", "1.2.*+build", "single trailing '.*'"),
-        ("ordered_wildcard", "compare", "1.2.*", "only support '==' and '!='"),
+        ("ordered_wildcard", "compare", "1.2.*", "only support"),
         ("compatible_wildcard", "compatible", "1.2.*", "non-negative numeric release components"),
         ("empty_prerelease", "matches", "1.2.3-", "non-empty SemVer identifiers"),
         ("empty_build", "matches", "1.2.3+", "non-empty SemVer identifiers"),
         ("invalid_prerelease", "matches", "1.2.3-rc_1", "non-empty SemVer identifiers"),
         ("prerelease_leading_zero", "matches", "1.2.3-01", "must not have leading zeros"),
         ("release_leading_zero", "matches", "01.2.3", "must not have leading zeros"),
+        ("extended_exact", "extended", "~~=1.2", "single trailing '.*'"),
+        ("extended_negated_exact", "extended", "!~~=1.2", "single trailing '.*'"),
+        ("extended_parsed_exact", "extended_parsed", "~~=1.2", "single trailing '.*'"),
+        ("extended_parsed_negated_exact", "extended_parsed", "!~~=1.2", "single trailing '.*'"),
+        ("extended_interior", "extended", "~~=1.*.2", "single trailing '.*'"),
+        ("extended_partial", "extended", "!~~=1.2*", "single trailing '.*'"),
+        ("extended_empty", "extended", "~~=", "single trailing '.*'"),
+        ("extended_bare", "extended", "!~~=*", "single trailing '.*'"),
+        ("compatible_negated_single", "extended", "!~=1", "at least two release components"),
+        ("compatible_negated_wildcard", "extended", "!~=1.2.*", "only support"),
+        ("compatible_negated_parsed_wildcard", "extended_parsed", "!~=1.2.*", "only support"),
         ("unknown_mode", "mode", "", "Version mode must be"),
         ("negative_prefix", "prefix", "", "non-negative integer"),
         ("invalid_index", "components", "", "Component indices must be integers"),

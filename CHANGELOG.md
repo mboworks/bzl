@@ -1,7 +1,9 @@
 # 0.6.0
 
 - Add `versions.prefix`, `versions.components`, `versions.compatible`, and `versions.matches`.
-- Support compatible-release (`~=`) requirements and trailing `.*` matching/exclusion (`==`, `!=`).
+- Support compatible-release (`~=`), negated compatible (`!~=`), extended wildcard-compatible
+  (`~~=`), and negated extended (`!~~=`) requirements, plus trailing `.*` matching/exclusion
+  (`==`, `!=`). Extended compatibility adds a stable lower bound to prefix matching.
 - Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep
   `mode = "legacy"` by default. SemVer mode zero-pads release comparisons and preserves distinct
   prerelease identifiers such as `rc1` and `rc.1`, with lexical `rc10 < rc2` ordering.
