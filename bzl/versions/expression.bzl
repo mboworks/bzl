@@ -93,8 +93,9 @@ def _top_level(text, *, clauses = False):
 
                 # New text-valued helpers compare quoted literals. Preserve the
                 # historical opaque RHS grammar for version/=== operands.
-                name = text[clause_start:index].strip().split("(", 1)[0]
-                literal_operand = _RESULT_TYPES.get(name) == "string"
+                left = text[clause_start:index].strip()
+                opening = left.find("(")
+                literal_operand = opening > 0 and _RESULT_TYPES.get(left[:opening].strip()) == "string"
     if quote or depth:
         fail("Unbalanced version expression: '{}'".format(text))
     return positions

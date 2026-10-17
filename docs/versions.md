@@ -423,6 +423,9 @@ requires a quoted string with `==`/`!=`. These comparisons use the returned valu
 version normalization or SemVer's metadata-ignoring equality. For example, `build()=="001"` tests the
 exact metadata text. Existing release-valued helpers retain their version comparison semantics.
 Bare predicate calls without a comparator are not supported.
+Quoted-text operand handling applies only to actual calls, including `prerelease ()` with
+whitespace before the parentheses. A constant named `prerelease`, `build`, or `local` keeps the
+ordinary version-operand grammar; sharing a function name does not change its interpretation.
 
 Arguments can be integer/string/boolean/`None` literals, constant references, keyword arguments,
 and nested calls to these helpers. Version strings can use either quote style and ordinary quote/backslash or newline,

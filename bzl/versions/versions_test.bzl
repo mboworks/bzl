@@ -853,6 +853,7 @@ def _versions_introspection_expressions_test(ctx):
         ("semver", "1.2.3-rc1", 'has_prerelease_prefix("2.0-rc1",prerelease("1.0-rc1"))==True', True),
         ("legacy", "1.2.3-rc1", 'has_prerelease_prefix("2.0-rc1",prerelease("1.0-rc1"))==True', False),
         ("semver", "1.2.3-rc1", 'prerelease()=="rc,1",major()==1', False),
+        ("semver", "1.2.3-rc1", 'prerelease ()=="rc,1",major()==1', False),
         ("semver", "1.2.3-rc1", 'build()!="a,b(c)\\\"d",major()==1', True),
     ]:
         _assert_eq(env, versions.check_one_requirement(candidate, clause, mode = mode) if "," not in clause else versions.check_all_requirements(candidate, clause, mode = mode), expected, "{} {} {}".format(mode, candidate, clause))
@@ -860,6 +861,13 @@ def _versions_introspection_expressions_test(ctx):
         _assert_eq(env, versions.check_all_requirements(candidate, parsed, mode = mode), expected)
     _assert_eq(env, versions.check_all_requirements("1.2-rc1", "has_prerelease_prefix(label)==True,component(index)==2", constants = {"index": 1, "label": "rc"}, mode = "semver"), True)
     _assert_eq(env, versions.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc.1"'), True)
+    for name in ["build", "local", "prerelease"]:
+        for value in ['opaque"token', "opaque'token"]:
+            for mode, op in [("legacy", "=="), ("pep440", "===")]:
+                clause = name + op + value
+                _assert_eq(env, versions.check_one_requirement("1", clause, constants = {name: value}, mode = mode), True)
+                parsed = versions.parse_requirements(clause, mode = mode)
+                _assert_eq(env, versions.check_all_requirements("1", parsed, constants = {name: value}, mode = mode), True)
     return unittest.end(env)
 
 def _versions_with_mode_test(ctx):
