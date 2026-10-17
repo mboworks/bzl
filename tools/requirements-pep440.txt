@@ -1,0 +1,2 @@
+# Developer-only reference implementation for generating conformance fixtures.
+packaging==26.0

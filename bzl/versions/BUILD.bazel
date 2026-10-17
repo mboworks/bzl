@@ -23,7 +23,15 @@ bzl_library(
     name = "versions_bzl",
     srcs = ["versions.bzl"],
     visibility = ["//visibility:public"],
-    deps = [":expression_bzl"],
+    deps = [
+        ":expression_bzl",
+        ":pep440_bzl",
+    ],
+)
+
+bzl_library(
+    name = "pep440_bzl",
+    srcs = ["pep440.bzl"],
 )
 
 bzl_library(

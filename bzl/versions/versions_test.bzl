@@ -16,6 +16,7 @@
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//bzl/versions:versions.bzl", "versions")
+load(":pep440_cases.bzl", "PEP440_CASES")
 
 def _assert_eq(env, result, expected, msg = None):
     asserts.equals(env, expected, result, msg)
@@ -761,6 +762,47 @@ def _versions_functions_test(ctx):
             _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(clause, mode = mode), mode = mode), expected)
     return unittest.end(env)
 
+def _versions_pep440_test(ctx):
+    env = unittest.begin(ctx)
+    for raw, normalized in PEP440_CASES["normalized"]:
+        _assert_eq(env, versions.parse(raw, mode = "pep440").normalized, normalized, "normalize {}".format(raw))
+    for left_index, left_group in enumerate(PEP440_CASES["order_groups"]):
+        for right_index, right_group in enumerate(PEP440_CASES["order_groups"]):
+            expected = int(left_index > right_index) - int(left_index < right_index)
+            for left in left_group:
+                for right in right_group:
+                    _test_cmp(env, left, right, expected, mode = "pep440")
+    for left, right, expected in PEP440_CASES["combined_order"]:
+        _test_cmp(env, left, right, expected, mode = "pep440")
+    for candidate, requirement, expected in PEP440_CASES["clauses"]:
+        _assert_eq(env, versions.check_one_requirement(candidate, requirement, mode = "pep440"), expected, "{} {}".format(candidate, requirement))
+        _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(requirement, mode = "pep440"), mode = "pep440"), expected)
+    _assert_eq(env, versions.components("1!1.2rc1.post2.dev3+local", end = 4, pad = True, mode = "pep440"), "1.2.0.0")
+    _assert_eq(env, versions.prefix("1!1.2rc1.post2.dev3+local", 1, mode = "pep440"), "1")
+    _assert_eq(env, versions.matches("1.0+abc", "1.0", mode = "pep440"), True)
+    _assert_eq(env, versions.eq("1.0+abc", "1.0", mode = "pep440"), False)
+    _assert_eq(env, versions.compatible("1.9", "1.4", mode = "pep440"), True)
+    _assert_eq(env, versions.check_all_requirements("1.4", ">=1.0,!=1.3.*,<2", mode = "pep440"), True)
+    _assert_eq(env, versions.check_one_requirement("invalid", "===INVALID", mode = "pep440"), True)
+    for arbitrary in ["foo(", "foo)", "foo'bar"]:
+        _assert_eq(env, versions.check_one_requirement(arbitrary, "===" + arbitrary, mode = "pep440"), True)
+        _assert_eq(env, versions.check_all_requirements(arbitrary, "===" + arbitrary, mode = "pep440"), True)
+    for clause in ["major()==23,minor()>=2", "prefix(2)==23.2", "components(start=1,end=3)==2.1", "major(prefix(2))==23"]:
+        _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", clause, mode = "pep440"), True)
+        _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", versions.parse_requirements(clause, mode = "pep440"), mode = "pep440"), True)
+
+    _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", "major()==23,minor()>=2,patch()==1", mode = "pep440"), True)
+    _assert_eq(env, versions.check_one_requirement("23", "minor()==0", mode = "pep440"), True)
+    _assert_eq(env, versions.check_one_requirement("23.1", "minor()>=2", mode = "pep440"), False)
+    _assert_eq(env, versions.check_all_requirements("1!23.2.1", versions.parse_requirements("major()==23,minor()>=2", mode = "pep440"), mode = "pep440"), True)
+    for candidate, required, expected in [("1.2", "1.2.*", True), ("1.2rc1", "1.2.*", False), ("1.2.1rc1", "1.2.*", True), ("1.3", "1.2.*", False), ("1!1.2", "1!1.2.*", True)]:
+        _assert_eq(env, versions.compare(candidate, "~~=", required, mode = "pep440"), expected)
+        _assert_eq(env, versions.compare(candidate, "!~~=", required, mode = "pep440"), not expected)
+        _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements("~~=" + required, mode = "pep440"), mode = "pep440"), expected)
+    _assert_eq(env, versions.compare("2.0", "!~=", "1.2", mode = "pep440"), True)
+
+    return unittest.end(env)
+
 def _invalid_version_operation_impl(ctx):
     if ctx.attr.operation == "compatible":
         versions.compatible("1.4.5", ctx.attr.required)
@@ -768,6 +810,10 @@ def _invalid_version_operation_impl(ctx):
         versions.check_one_requirement("1.2.3", ctx.attr.required, mode = "semver")
     elif ctx.attr.operation == "extended_parsed":
         versions.parse_requirements(ctx.attr.required, mode = "semver")
+    elif ctx.attr.operation == "pep440_version":
+        versions.parse(ctx.attr.required, mode = "pep440")
+    elif ctx.attr.operation == "pep440_specifier":
+        versions.check_one_requirement("1.0", ctx.attr.required, mode = "pep440")
     elif ctx.attr.operation == "mode":
         versions.parse("1.2.3", mode = "unknown")
     elif ctx.attr.operation == "matches":
@@ -805,6 +851,7 @@ versions_compatible_test = unittest.make(_versions_compatible_test)
 versions_matches_test = unittest.make(_versions_matches_test)
 versions_semver_precedence_test = unittest.make(_versions_semver_precedence_test)
 versions_modes_test = unittest.make(_versions_modes_test)
+versions_pep440_test = unittest.make(_versions_pep440_test)
 versions_compatible_operators_test = unittest.make(_versions_compatible_operators_test)
 versions_named_components_test = unittest.make(_versions_named_components_test)
 versions_functions_test = unittest.make(_versions_functions_test)
@@ -833,6 +880,7 @@ def versions_test_suite(name = "versions_tests"):
         versions_matches_test,
         versions_semver_precedence_test,
         versions_modes_test,
+        versions_pep440_test,
         versions_compatible_operators_test,
         versions_named_components_test,
         versions_functions_test,
@@ -914,3 +962,17 @@ def versions_test_suite(name = "versions_tests"):
             target_under_test = ":" + fixture,
             expected_error = expected_error,
         )
+    for operation, values in [("pep440_version", PEP440_CASES["invalid_versions"]), ("pep440_specifier", PEP440_CASES["invalid_specifiers"])]:
+        for index, value in enumerate(values):
+            fixture = name + "_" + operation + "_" + str(index)
+            _invalid_version_operation(
+                name = fixture,
+                operation = operation,
+                required = value,
+                tags = ["manual"],
+            )
+            _invalid_version_operation_test(
+                name = fixture + "_test",
+                target_under_test = ":" + fixture,
+                expected_error = "PEP 440",
+            )

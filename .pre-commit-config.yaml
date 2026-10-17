@@ -39,6 +39,13 @@ repos:
     entry: python3 -m unittest discover -s tools -p '*_test.py'
     files: ^(tools/|docs/assets/|release-site\.json$|\.github/workflows/)
     pass_filenames: false
+  - id: pep440-reference-cases
+    name: Verify PEP 440 reference fixtures
+    language: python
+    entry: python tools/generate_pep440_cases.py --check
+    additional_dependencies: [packaging==26.0]
+    files: ^(tools/(generate_pep440_cases\.py|requirements-pep440\.txt)|bzl/versions/pep440_cases\.bzl)$
+    pass_filenames: false
   - id: uncomment-bazelmod-includes
     name: uncomment-bazelmod-includes
     description: |
