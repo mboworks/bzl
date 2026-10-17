@@ -1,10 +1,19 @@
 # 0.6.0
 
+- Document both public modules in `docs/versions.md` and `docs/paths.md`, including complete legacy,
+  SemVer and PEP 440 mode contracts; keep usage overviews in the root README.
+
 - Add opt-in `mode = "pep440"` for Python version parsing, precedence, and specifier clauses;
   preserve legacy and SemVer defaults. Include a developer-only packaging conformance oracle.
 
 - Add `versions.prefix`, `versions.components`, `versions.compatible`, and `versions.matches`.
-- Support compatible-release (`~=`) requirements and trailing `.*` matching/exclusion (`==`, `!=`).
+- Support compatible-release (`~=`), negated compatible (`!~=`), extended wildcard-compatible
+  (`~~=`), and negated extended (`!~~=`) requirements, plus trailing `.*` matching/exclusion
+  (`==`, `!=`). Extended compatibility adds a stable lower bound to prefix matching.
+- Add `versions.major`, `versions.minor`, `versions.patch` and allowlisted, nested version-function
+  expressions with an implied or explicit candidate and literal positional/keyword arguments.
+- Require function-call syntax in version expressions, reserving bare identifiers for future
+  customizable constants; use `major()==23,minor()>=2` for individual component comparisons.
 - Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep
   `mode = "legacy"` by default. SemVer mode zero-pads release comparisons and preserves distinct
   prerelease identifiers such as `rc1` and `rc.1`, with lexical `rc10 < rc2` ordering.

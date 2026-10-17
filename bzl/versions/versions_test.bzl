@@ -638,6 +638,130 @@ def _versions_matches_test(ctx):
     ])
     return unittest.end(env)
 
+def _versions_compatible_operators_test(ctx):
+    env = unittest.begin(ctx)
+    for candidate, required, expected in [
+        ("1.2", "1.2", True),
+        ("1.2.0", "1.2", True),
+        ("1.1.9", "1.2", False),
+        ("1.9.0", "1.2", True),
+        ("2.0.0", "1.2", False),
+        ("1.2-rc.1", "1.2", False),
+        ("1.3-rc.1", "1.2", True),
+        ("2.0-rc.1", "1.2", False),
+        ("1.2.3-rc.1", "1.2.3-rc.1", True),
+        ("1.2.3+build", "1.2.3", True),
+        ("1.3.0", "1.2.3", False),
+    ]:
+        for op, result in [("~=", expected), ("!~=", not expected)]:
+            _assert_eq(env, versions.compare(candidate, op, required, mode = "semver"), result)
+            requirement = " {} {} ".format(op, required)
+            _assert_eq(env, versions.check_one_requirement(candidate, requirement, mode = "semver"), result)
+            _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(requirement, mode = "semver"), mode = "semver"), result)
+    for candidate, pattern, expected in [
+        ("1.2", "1.2.*", True),
+        ("1.2.0", "1.2.*", True),
+        ("1.2.99", "1.2.*", True),
+        ("1.1.99", "1.2.*", False),
+        ("1.3", "1.2.*", False),
+        ("1.20.0", "1.2.*", False),
+        ("1.2-rc.1", "1.2.*", False),
+        ("1.2.0-rc.1", "1.2.*", False),
+        ("1.2.1-rc.1", "1.2.*", True),
+        ("1.3-rc.1", "1.2.*", False),
+        ("1.2+build", "1.2.*", True),
+        ("1", "1.0.*", True),
+        ("1.0", "1.*", True),
+        ("2.0", "1.*", False),
+        ("0.0", "0.*", True),
+        ("0.0-rc.1", "0.*", False),
+        ("1.2.3.0", "1.2.3.*", True),
+        ("1.2.4", "1.2.3.*", False),
+        ("1.2.3.4", "1.2.3.4.*", True),
+        ("1.2.3.5", "1.2.3.4.*", False),
+    ]:
+        for op, result in [("~~=", expected), ("!~~=", not expected)]:
+            _assert_eq(env, versions.compare(candidate, op, pattern, mode = "semver"), result)
+            requirement = " {} {} ".format(op, pattern)
+            _assert_eq(env, versions.check_one_requirement(candidate, requirement, mode = "semver"), result)
+            parsed = versions.parse_requirements(requirement, mode = "semver")
+            _assert_eq(env, versions.check_all_requirements(candidate, parsed, mode = "semver"), result)
+    _assert_eq(env, versions.compare([1, 2, 3], "~~=", [1, 2, "*"], mode = "semver"), True)
+    _assert_eq(env, versions.compare((1, 3), "!~~=", (1, 2, "*"), mode = "semver"), True)
+    _assert_eq(env, versions.check_one_requirement("1.2-rc.1", "==1.2.*", mode = "semver"), True)
+    _assert_eq(env, versions.check_all_requirements("1.2.4", "~~=1.2.*,!~=1.2.5", mode = "semver"), True)
+    _assert_eq(env, versions.check_all_requirements("1.2.5", "~~=1.2.*,!~=1.2.5", mode = "semver"), False)
+    _assert_eq(env, versions.parse_requirements("!~~=1.2.*,~~=2.3.*,!~=3.4,~=4.5", mode = "semver"), [
+        struct(op = "!~~=", version = [1, 2, "*"]),
+        struct(op = "~~=", version = [2, 3, "*"]),
+        struct(op = "!~=", version = [3, 4]),
+        struct(op = "~=", version = [4, 5]),
+    ])
+    for mode in ["legacy", "semver"]:
+        _assert_eq(env, versions.check_one_requirement("1.2.3", "~~=1.2.*", mode = mode), True)
+        _assert_eq(env, versions.check_one_requirement("1.2.3", "!~~=1.2.*", mode = mode), False)
+        _assert_eq(env, versions.check_one_requirement("1.2.3", "!~=1.2", mode = mode), False)
+    return unittest.end(env)
+
+def _versions_named_components_test(ctx):
+    env = unittest.begin(ctx)
+    for mode in ["legacy", "semver"]:
+        for candidate, requirement, expected in [
+            ("23.2.1", "major()==23,minor()>=2", True),
+            ("23.1.9", "major()==23,minor()>=2", False),
+            ("24.2.1", "major()==23,minor()>=2", False),
+            ("23.2.1", "major()!=24,minor()<3,patch()<=1", True),
+            ("23.2.1", "patch()>1", False),
+            ("23.2.1.9", "patch()==1", True),
+            ("23", "minor()==0,patch()==0", True),
+            ("23.2", "patch()==0", True),
+            ("23.2.1-rc1+build", " major() == 23 , minor() >= 2 , patch() == 1 ", True),
+            ([23, 2, 1], "major()==23,minor()>=2", True),
+            ((23, 2, 1), "patch()==1", True),
+        ]:
+            _assert_eq(env, versions.check_all_requirements(candidate, requirement, mode = mode), expected, "{}: {} {}".format(mode, candidate, requirement))
+            parsed = versions.parse_requirements(requirement, mode = mode)
+            _assert_eq(env, versions.check_all_requirements(candidate, parsed, mode = mode), expected)
+        _assert_eq(env, versions.check_one_requirement("23.2.1", "minor()>=2", mode = mode), True)
+        _assert_eq(env, versions.check_all_requirements("23.2.1", ["major()==23", "minor()>=2", ">=23.2.0"], mode = mode), True)
+        _assert_eq(env, versions.parse_requirements("major()==23,minor()>=2,patch()!=1,>=23.2", mode = mode), [
+            struct(component = "major", op = "==", version = [23]),
+            struct(component = "minor", op = ">=", version = [2]),
+            struct(component = "patch", op = "!=", version = [1]),
+            struct(op = ">=", version = [23, 2]),
+        ])
+    return unittest.end(env)
+
+def _versions_functions_test(ctx):
+    env = unittest.begin(ctx)
+    for version, expected in [("23.2.1", [23, 2, 1]), ("23", [23, 0, 0]), ("23.2", [23, 2, 0]), ("23.2.1.9-rc1+build", [23, 2, 1]), ([23, 2, 1], [23, 2, 1])]:
+        _assert_eq(env, [versions.major(version), versions.minor(version), versions.patch(version)], expected)
+    for candidate, clause, expected in [
+        ("23.2.1", "major()==23,minor()>=2", True),
+        ("23.1.9", "major()==23,minor()>=2", False),
+        ("23.2.1", "prefix(2)==23.2", True),
+        ("23.2.1", "prefix(count=2)==23.2", True),
+        ("23.2.1", 'prefix("24.3.2", 2)==24.3', True),
+        ("23.2.1", "prefix('24.3.2', count=2)==24.3", True),
+        ("23.2.1", 'prefix(version="24.3.2", count=2)==24.3', True),
+        ("23.2.1", "components(start=1,end=3)==2.1", True),
+        ("23.2.1", "components(start=-2,end=-1)==2", True),
+        ("23.2", "components(end=3,pad=True)==23.2.0", True),
+        ("23.2.1", "components()==23.2.1", True),
+        ("23.2.1", 'components("24.3.2", start=1, end=3)==3.2', True),
+        ("23.2.1", "major(prefix(2))==23", True),
+        ("23.2.1", "prefix(components(start=1,end=3),1)==2", True),
+        ("23.2.1", 'major(version="24.3")==24', True),
+        ("23.2.1", 'minor("24.3")==3', True),
+        ("23.2.1", "prefix(2)~=23.1", True),
+        ("23.2.1", "prefix(2)~~=23.*", True),
+        ("23.2.1", "components(start=1,end=None)==2.1", True),
+    ]:
+        for mode in ["legacy", "semver"]:
+            _assert_eq(env, versions.check_all_requirements(candidate, clause, mode = mode), expected, "{}: {} {}".format(mode, candidate, clause))
+            _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements(clause, mode = mode), mode = mode), expected)
+    return unittest.end(env)
+
 def _versions_pep440_test(ctx):
     env = unittest.begin(ctx)
     for raw, normalized in PEP440_CASES["normalized"]:
@@ -660,11 +784,32 @@ def _versions_pep440_test(ctx):
     _assert_eq(env, versions.compatible("1.9", "1.4", mode = "pep440"), True)
     _assert_eq(env, versions.check_all_requirements("1.4", ">=1.0,!=1.3.*,<2", mode = "pep440"), True)
     _assert_eq(env, versions.check_one_requirement("invalid", "===INVALID", mode = "pep440"), True)
+    for arbitrary in ["foo(", "foo)", "foo'bar"]:
+        _assert_eq(env, versions.check_one_requirement(arbitrary, "===" + arbitrary, mode = "pep440"), True)
+        _assert_eq(env, versions.check_all_requirements(arbitrary, "===" + arbitrary, mode = "pep440"), True)
+    for clause in ["major()==23,minor()>=2", "major()==23,minor()>=2", "prefix(2)==23.2", "components(start=1,end=3)==2.1", "major(prefix(2))==23"]:
+        _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", clause, mode = "pep440"), True)
+        _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", versions.parse_requirements(clause, mode = "pep440"), mode = "pep440"), True)
+
+    _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", "major()==23,minor()>=2,patch()==1", mode = "pep440"), True)
+    _assert_eq(env, versions.check_one_requirement("23", "minor()==0", mode = "pep440"), True)
+    _assert_eq(env, versions.check_one_requirement("23.1", "minor()>=2", mode = "pep440"), False)
+    _assert_eq(env, versions.check_all_requirements("1!23.2.1", versions.parse_requirements("major()==23,minor()>=2", mode = "pep440"), mode = "pep440"), True)
+    for candidate, required, expected in [("1.2", "1.2.*", True), ("1.2rc1", "1.2.*", False), ("1.2.1rc1", "1.2.*", True), ("1.3", "1.2.*", False), ("1!1.2", "1!1.2.*", True)]:
+        _assert_eq(env, versions.compare(candidate, "~~=", required, mode = "pep440"), expected)
+        _assert_eq(env, versions.compare(candidate, "!~~=", required, mode = "pep440"), not expected)
+        _assert_eq(env, versions.check_all_requirements(candidate, versions.parse_requirements("~~=" + required, mode = "pep440"), mode = "pep440"), expected)
+    _assert_eq(env, versions.compare("2.0", "!~=", "1.2", mode = "pep440"), True)
+
     return unittest.end(env)
 
 def _invalid_version_operation_impl(ctx):
     if ctx.attr.operation == "compatible":
         versions.compatible("1.4.5", ctx.attr.required)
+    elif ctx.attr.operation == "extended":
+        versions.check_one_requirement("1.2.3", ctx.attr.required, mode = "semver")
+    elif ctx.attr.operation == "extended_parsed":
+        versions.parse_requirements(ctx.attr.required, mode = "semver")
     elif ctx.attr.operation == "pep440_version":
         versions.parse(ctx.attr.required, mode = "pep440")
     elif ctx.attr.operation == "pep440_specifier":
@@ -707,6 +852,9 @@ versions_matches_test = unittest.make(_versions_matches_test)
 versions_semver_precedence_test = unittest.make(_versions_semver_precedence_test)
 versions_modes_test = unittest.make(_versions_modes_test)
 versions_pep440_test = unittest.make(_versions_pep440_test)
+versions_compatible_operators_test = unittest.make(_versions_compatible_operators_test)
+versions_named_components_test = unittest.make(_versions_named_components_test)
+versions_functions_test = unittest.make(_versions_functions_test)
 versions_ge_test = unittest.make(_versions_ge_test)
 versions_gt_test = unittest.make(_versions_gt_test)
 versions_le_test = unittest.make(_versions_le_test)
@@ -733,6 +881,9 @@ def versions_test_suite(name = "versions_tests"):
         versions_semver_precedence_test,
         versions_modes_test,
         versions_pep440_test,
+        versions_compatible_operators_test,
+        versions_named_components_test,
+        versions_functions_test,
         versions_ge_test,
         versions_gt_test,
         versions_le_test,
@@ -755,13 +906,46 @@ def versions_test_suite(name = "versions_tests"):
         ("prerelease_wildcard", "matches", "1.2-rc.*", "single trailing '.*'"),
         ("build_wildcard", "matches", "1.2+build.*", "single trailing '.*'"),
         ("wildcard_build", "matches", "1.2.*+build", "single trailing '.*'"),
-        ("ordered_wildcard", "compare", "1.2.*", "only support '==' and '!='"),
+        ("ordered_wildcard", "compare", "1.2.*", "only support"),
         ("compatible_wildcard", "compatible", "1.2.*", "non-negative numeric release components"),
         ("empty_prerelease", "matches", "1.2.3-", "non-empty SemVer identifiers"),
         ("empty_build", "matches", "1.2.3+", "non-empty SemVer identifiers"),
         ("invalid_prerelease", "matches", "1.2.3-rc_1", "non-empty SemVer identifiers"),
         ("prerelease_leading_zero", "matches", "1.2.3-01", "must not have leading zeros"),
         ("release_leading_zero", "matches", "01.2.3", "must not have leading zeros"),
+        ("extended_exact", "extended", "~~=1.2", "single trailing '.*'"),
+        ("extended_negated_exact", "extended", "!~~=1.2", "single trailing '.*'"),
+        ("extended_parsed_exact", "extended_parsed", "~~=1.2", "single trailing '.*'"),
+        ("extended_parsed_negated_exact", "extended_parsed", "!~~=1.2", "single trailing '.*'"),
+        ("extended_interior", "extended", "~~=1.*.2", "single trailing '.*'"),
+        ("extended_partial", "extended", "!~~=1.2*", "single trailing '.*'"),
+        ("extended_empty", "extended", "~~=", "single trailing '.*'"),
+        ("extended_bare", "extended", "!~~=*", "single trailing '.*'"),
+        ("compatible_negated_single", "extended", "!~=1", "at least two release components"),
+        ("compatible_negated_wildcard", "extended", "!~=1.2.*", "only support"),
+        ("compatible_negated_parsed_wildcard", "extended_parsed", "!~=1.2.*", "only support"),
+        ("named_missing_operator", "extended_parsed", "major23", "non-negative numeric release components"),
+        ("named_single_equals", "extended_parsed", "major()=23", "non-negative numeric release components"),
+        ("named_compatible", "extended_parsed", "minor()~=2.1", "requires =="),
+        ("named_extended", "extended_parsed", "patch()~~=2.*", "requires =="),
+        ("named_wildcard", "extended_parsed", "major()==23.*", "non-negative integer operand"),
+        ("named_multiple_parts", "extended_parsed", "minor()>=23.2", "non-negative integer operand"),
+        ("named_suffix", "extended_parsed", "patch()==1-rc1", "non-negative integer operand"),
+        ("named_negative", "extended_parsed", "minor()>=-1", "non-negative integer operand"),
+        ("named_empty", "extended_parsed", "major()==", "non-negative integer operand"),
+        ("bare_major", "extended_parsed", "major==23", "Unknown version function or reference"),
+        ("bare_minor", "extended_parsed", "minor==23", "Unknown version function or reference"),
+        ("bare_patch", "extended_parsed", "patch==23", "Unknown version function or reference"),
+        ("function_unknown", "extended", "unknown()==23", "Unknown version function"),
+        ("function_unbalanced", "extended", "prefix(2==23", "Unbalanced version expression"),
+        ("function_duplicate_keyword", "extended", "prefix(count=2,count=3)==23", "duplicate version function keyword"),
+        ("function_positional_after_keyword", "extended", "prefix(count=2,3)==23", "must precede"),
+        ("function_empty_argument", "extended", "prefix(,2)==23", "Invalid version function argument"),
+        ("function_mode_override", "extended", "major(mode='legacy')==23", "version function keyword"),
+        ("function_expression", "extended", "prefix(1+1)==23", "arguments must be"),
+        ("function_string_unclosed", "extended", "major('23)==23", "Unbalanced version expression"),
+        ("function_bad_count", "extended", "prefix(-1)==23", "non-negative integer"),
+        ("function_nonliteral", "extended", "prefix(variable)==23", "arguments must be"),
         ("unknown_mode", "mode", "", "Version mode must be"),
         ("negative_prefix", "prefix", "", "non-negative integer"),
         ("invalid_index", "components", "", "Component indices must be integers"),

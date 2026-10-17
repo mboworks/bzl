@@ -182,6 +182,12 @@ def _compatible(version, required):
     return _compare(version, minimum, local = False) >= 0 and _matches(version, prefix)
 
 def _clause(version, op, required):
+    if op in ["~~=", "!~~="]:
+        prefix = _prefix_pattern(required)
+        matched = _matches(version, required) and _compare(version, prefix, local = False) >= 0
+        return matched if op == "~~=" else not matched
+    if op == "!~=":
+        return not _compatible(version, required)
     if op == "===":
         # Arbitrary equality is a string escape hatch, including invalid versions.
         parsed = _try_parse(version)

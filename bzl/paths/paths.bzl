@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A starlark implementation of path manipulationfunctions.
+"""A starlark implementation of path manipulation functions.
 
-SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
+SEE [Paths reference](https://github.com/mboworks/bzl/blob/main/docs/paths.md).
 """
 
 def _collapse(path, is_windows = False):

@@ -23,12 +23,20 @@ bzl_library(
     name = "versions_bzl",
     srcs = ["versions.bzl"],
     visibility = ["//visibility:public"],
-    deps = [":pep440_bzl"],
+    deps = [
+        ":expression_bzl",
+        ":pep440_bzl",
+    ],
 )
 
 bzl_library(
     name = "pep440_bzl",
     srcs = ["pep440.bzl"],
+)
+
+bzl_library(
+    name = "expression_bzl",
+    srcs = ["expression.bzl"],
 )
 
 alias(

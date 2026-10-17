@@ -10,7 +10,8 @@
     "GIT_RULES.md": "GIT_RULES.html",
     "STYLE_SH.md": "STYLE_SH.html",
     "docs/infrastructure.md": "docs/infrastructure.html",
-    "docs/pep440-review.md": "docs/pep440-review.html"
+    "docs/versions.md": "docs/versions.html",
+    "docs/paths.md": "docs/paths.html"
   },
   "links": []
 }
