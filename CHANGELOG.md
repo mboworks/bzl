@@ -1,5 +1,8 @@
 # 0.6.0
 
+- Add opt-in `mode = "pep440"` for Python version parsing, precedence, and specifier clauses;
+  preserve legacy and SemVer defaults. Include a developer-only packaging conformance oracle.
+
 - Add `versions.prefix`, `versions.components`, `versions.compatible`, and `versions.matches`.
 - Support compatible-release (`~=`) requirements and trailing `.*` matching/exclusion (`==`, `!=`).
 - Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep

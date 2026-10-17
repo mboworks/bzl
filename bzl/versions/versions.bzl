@@ -17,6 +17,8 @@
 SEE [README.md](https://github.com/mboworks/bzl/blob/main/README.md).
 """
 
+load(":pep440.bzl", "pep440")
+
 def _maybe_int(value):
     if type(value) == "string" and value.isdigit():
         return int(value)
@@ -172,8 +174,8 @@ def _release_parse_version(version):
     return _legacy_parse_version(version)
 
 def _check_mode(mode):
-    if mode not in ["legacy", "semver"]:
-        fail("Version mode must be 'legacy' or 'semver'; got '{}'.".format(mode))
+    if mode not in ["legacy", "semver", "pep440"]:
+        fail("Version mode must be 'legacy', 'semver', or 'pep440'; got '{}'.".format(mode))
 
 def _parse_version(version, *, skip_build = False, error = "Cannot parse version.", mode = "legacy"):
     """Parses a version; legacy preserves historical normalization, semver preserves identifiers.
@@ -182,12 +184,15 @@ def _parse_version(version, *, skip_build = False, error = "Cannot parse version
         version: Version string, integer, list, or tuple.
         skip_build: Drop build metadata.
         error: Custom failure message for unsupported input types.
-        mode: "legacy" (default) preserves historical behavior; "semver" uses SemVer precedence.
+        mode: "legacy" (default), "semver", or "pep440"; see README for contracts.
 
     Returns:
-        List of components, preserving the original release component count.
+        Legacy/SemVer: list of components. PEP 440: named version record.
+        All modes preserve the original release component count.
     """
     _check_mode(mode)
+    if mode == "pep440":
+        return pep440.parse(version)
     if mode == "legacy":
         return _legacy_parse_version(version, skip_build = skip_build, error = error)
     return _constraint_parse(version, skip_build = skip_build)
@@ -212,7 +217,7 @@ def _cmp(lhs, rhs):
 def _release_components(parsed):
     return parsed[:min(_list_find(parsed, "-", len(parsed)), _list_find(parsed, "+", len(parsed)))]
 
-def _version_components(version, *, start = 0, end = None, pad = False):
+def _version_components(version, *, start = 0, end = None, pad = False, mode = "semver"):
     """Returns selected release components as a dot-separated string.
 
     Args:
@@ -220,13 +225,15 @@ def _version_components(version, *, start = 0, end = None, pad = False):
         start: Inclusive index, relative to the original length when negative.
         end: Exclusive index; None uses the original length.
         pad: Extend with zeros to an explicitly supplied positive end before slicing.
+        mode: "semver" (default), "legacy", or "pep440" for Python release parsing.
 
     Returns:
         Selected release components, or an empty string for an empty selection.
     """
     if type(start) != "int" or (end != None and type(end) != "int"):
         fail("Component indices must be integers or end = None.")
-    parts = _release_components(_release_parse_version(version))
+    _check_mode(mode)
+    parts = list(pep440.parse(version).release) if mode == "pep440" else _release_components(_release_parse_version(version))
     size = len(parts)
     start = max(0, size + start) if start < 0 else start
     end = size if end == None else (max(0, size + end) if end < 0 else end)
@@ -234,19 +241,20 @@ def _version_components(version, *, start = 0, end = None, pad = False):
         parts = parts + [0] * (end - size)
     return ".".join([str(part) for part in parts[start:end]])
 
-def _version_prefix(version, count):
+def _version_prefix(version, count, *, mode = "semver"):
     """Returns at most count release components as a dot-separated string.
 
     Args:
         version: A version accepted by `parse`; suffixes are excluded.
         count: Non-negative number of components to select, without padding.
+        mode: "semver" (default), "legacy", or "pep440" for Python release parsing.
 
     Returns:
         The release prefix, or an empty string when count is zero.
     """
     if type(count) != "int" or count < 0:
         fail("Prefix count must be a non-negative integer.")
-    return _version_components(version, end = count)
+    return _version_components(version, end = count, mode = mode)
 
 def _constraint_parse(version, *, skip_build = True):
     # Validate raw suffix identifiers before converting numeric strings; this
@@ -333,8 +341,8 @@ def _version_matches(version, pattern, *, skip_build = True, mode = "semver"):
     Args:
         version: Candidate with numeric release components and SemVer suffixes.
         pattern: An exact version, or a numeric release prefix followed by .*.
-        skip_build: Ignore build metadata, as SemVer requires for precedence.
-        mode: "semver" (default) or "legacy" for historical comparisons.
+        skip_build: Ignore SemVer build metadata; has no effect in pep440 mode.
+        mode: "semver" (default), "legacy", or "pep440" for Python version semantics.
 
     Returns:
         Whether the exact version or whole-component release prefix matches.
@@ -342,6 +350,8 @@ def _version_matches(version, pattern, *, skip_build = True, mode = "semver"):
         suffixes; admitting prereleases remains a separate caller policy.
     """
     _check_mode(mode)
+    if mode == "pep440":
+        return pep440.matches(version, pattern)
     candidate = _parse_version(version, skip_build = skip_build, mode = mode)
     if _has_wildcard(pattern):
         prefix = _match_prefix(pattern)
@@ -356,8 +366,8 @@ def _version_compatible(version, required, *, skip_build = True, mode = "semver"
         version: Candidate version, using SemVer prerelease/build syntax.
         required: Lower bound with at least two numeric release components.
             All but its last release component determine the required prefix.
-        skip_build: Ignore build metadata for precedence, as SemVer requires.
-        mode: "semver" (default) or "legacy" for historical comparisons.
+        skip_build: Ignore SemVer build metadata; has no effect in pep440 mode.
+        mode: "semver" (default), "legacy", or "pep440" for Python version semantics.
 
     Returns:
         Whether the candidate shares the required prefix and meets the lower bound.
@@ -365,6 +375,8 @@ def _version_compatible(version, required, *, skip_build = True, mode = "semver"
         Prerelease admission is a separate caller policy, as with ge/lt.
     """
     _check_mode(mode)
+    if mode == "pep440":
+        return pep440.compatible(version, required)
     candidate = _parse_version(version, skip_build = skip_build, mode = mode)
     minimum = _parse_version(required, skip_build = skip_build, mode = mode)
     release = _release_components(minimum)
@@ -436,6 +448,8 @@ def _legacy_version_cmp(version_lhs, version_rhs, *, skip_build = True):
 def _version_cmp(version_lhs, version_rhs, *, skip_build = True, mode = "legacy"):
     """Compares versions using legacy behavior or zero-padded SemVer precedence."""
     _check_mode(mode)
+    if mode == "pep440":
+        return pep440.cmp(version_lhs, version_rhs)
     if mode == "legacy":
         return _legacy_version_cmp(version_lhs, version_rhs, skip_build = skip_build)
     return _constraint_cmp(
@@ -470,6 +484,8 @@ def _version_ne(version_lhs, version_rhs, *, skip_build = True, mode = "legacy")
 def _version_compare(lhs, op, rhs, *, skip_build = True, error = None, mode = "legacy"):
     """Implements `lhs OP rhs` using the selected comparison mode."""
     _check_mode(mode)
+    if mode == "pep440":
+        return pep440.compare(lhs, op, rhs)
     if _has_wildcard(rhs):
         if op == "==":
             return _version_matches(lhs, rhs, skip_build = skip_build, mode = mode)
@@ -517,7 +533,10 @@ def _check_one_requirement(version, requirement, *, skip_build = True, mode = "l
     """
     if type(requirement) == "string":
         requirement = requirement.strip()
-        if len(requirement) >= 2 and requirement[0:2] in [">=", "<=", "==", "!=", "~="]:
+        if mode == "pep440" and requirement.startswith("==="):
+            op = "==="
+            rhs = requirement[3:].strip()
+        elif len(requirement) >= 2 and requirement[0:2] in [">=", "<=", "==", "!=", "~="]:
             op = requirement[0:2]
             rhs = requirement[2:].strip()
         elif len(requirement) >= 1 and requirement[0] in [">", "<"]:
@@ -554,11 +573,15 @@ def _check_all_requirements(version, requirements, *, skip_build = True, mode = 
 def _parse_split_requirement(req, *, mode = "legacy"):
     op = "=="
     value = req
-    for comparator in ["~=", ">=", "<=", "==", "!=", ">", "<"]:
+    for comparator in (["==="] if mode == "pep440" else []) + ["~=", ">=", "<=", "==", "!=", ">", "<"]:
         if req.startswith(comparator):
             op = comparator
             value = req[len(comparator):].strip()
             break
+    if mode == "pep440":
+        # Retain the operand spelling: wildcard and arbitrary-equality clauses
+        # are patterns, and local-version restrictions depend on the operator.
+        return struct(op = op, version = value.strip())
     if _has_wildcard(value):
         if op not in ["==", "!="]:
             fail("Wildcard requirements only support '==' and '!='.")

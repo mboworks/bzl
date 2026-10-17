@@ -16,7 +16,7 @@ The following libraries are implemented:
 Implements versioning functions that mostly follow [Semver](https://semver.org/).
 
 The existing parsing, comparison, and requirement APIs accept `mode = "legacy"` (the default) or
-`mode = "semver"`. The default preserves their historical behavior. Select a mode explicitly when
+`mode = "semver"`, or `mode = "pep440"`. The default preserves their historical behavior. Select a mode explicitly when
 passing parsed versions or requirements between APIs.
 
 - **Legacy:** release component counts affect ordering (`1.2 < 1.2.0`). Prerelease identifiers with
@@ -76,8 +76,8 @@ Provides:
 - `load("@mboworks_bzl//bzl/versions:versions.bzl", _versions = "versions")`
   - `versions` is a single import structure:
     - `parse`: Parses a version while preserving its release component count.
-    - `prefix(version, count)`: Returns at most `count` release components as a dot-separated string.
-    - `components(version, *, start = 0, end = None, pad = False)`: Returns a release component slice.
+    - `prefix(version, count, *, mode = "semver")`: Returns at most `count` release components as a dot-separated string.
+    - `components(version, *, start = 0, end = None, pad = False, mode = "semver")`: Returns a release component slice.
     - `compatible(version, required, *, skip_build = True, mode = "semver")`: Tests a compatible-release requirement.
     - `matches(version, pattern, *, skip_build = True, mode = "semver")`: Tests an exact version or a trailing `.*` pattern.
     - `ge`: Implements `L >= R`.
@@ -118,7 +118,7 @@ These helpers adopt Python's
 [compatible release](https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release)
 and [version matching](https://packaging.python.org/en/latest/specifications/version-specifiers/#version-matching)
 semantics for numeric release components, using SemVer syntax and precedence for suffixes.
-These two modes are not a full Python package version parser: Python epochs, `dev`/`post` suffixes and Python
+The legacy and SemVer modes are not Python package version parsers: Python epochs, `dev`/`post` suffixes and Python
 prerelease normalization are not supported. Prerelease admission is a separate selection policy;
 these predicates evaluate a candidate even if it is a prerelease. Build metadata is ignored unless
 `skip_build = False`, an extension that opts out of SemVer's metadata precedence rule.
@@ -171,6 +171,61 @@ versions.check_all_requirements("1.4.8", "~=1.4.5,!=1.4.7", mode = "semver")  # 
 requirements = versions.parse_requirements("==1.2.*,!=1.2.4", mode = "semver")
 versions.check_all_requirements("1.2.3", requirements, mode = "semver")  # True
 ```
+
+### Python PEP 440 mode (draft follow-up)
+
+`mode = "pep440"` implements the
+[Python version scheme and specifier clauses](https://packaging.python.org/en/latest/specifications/version-specifiers/):
+epochs, arbitrary-length numeric releases, normalized alpha/beta/RC prereleases, post/development
+releases, local versions, compatible releases, wildcard matching/exclusion, ordered clauses and
+arbitrary equality (`===`). Parsing accepts normalized aliases, optional separators, a leading `v`,
+leading zeros, and surrounding whitespace. Direct comparisons include local versions; requirement
+matching ignores candidate local labels unless an equality requirement supplies one.
+
+```starlark
+versions.eq("1.2-rc1", "1.2rc.1", mode = "pep440")  # True
+versions.lt("1.2rc2", "1.2rc10", mode = "pep440")   # True (numeric RC ordering)
+versions.lt("1.2.dev1", "1.2a1", mode = "pep440")   # True
+versions.lt("1.2", "1.2.post1", mode = "pep440")    # True
+versions.eq("1.2+local", "1.2", mode = "pep440")    # False (direct comparison)
+versions.matches("1.2+local", "1.2", mode = "pep440")  # True (requirement matching)
+versions.check_one_requirement("1.2.post1", ">1.2", mode = "pep440")  # False
+versions.check_one_requirement("1.2rc1", "<1.2", mode = "pep440")     # False
+```
+
+These clause-specific exclusions are required by PEP 440 even when a caller admits prereleases.
+`cmp`, `eq`, `ne`, `lt`, `le`, `gt`, and `ge` compare version precedence directly; `compare` and the
+requirement-string APIs evaluate specifier clauses. Thus `gt("1.2.post1", "1.2", mode = "pep440")`
+is true, while the `>1.2` requirement above is false. Local identifiers are forbidden in ordered
+and compatible-release requirements; an equality requirement can include them. `skip_build` has
+no effect in this mode: Python local-version semantics are not SemVer build metadata semantics.
+
+`parse(..., mode = "pep440")` returns an immutable record with `scheme = "pep440"`, `epoch`,
+`release` (tuple), `pre` (phase/number tuple or `None`), `post` and `dev` (integer or `None`),
+`local` (tuple), and `normalized` (string). Records can be reused in PEP 440 comparisons. This
+mode accepts strings, integers, numeric release lists/tuples, or those parsed records. It does not
+reinterpret legacy/SemVer suffix lists as Python versions. `prefix` and `components` accept
+`mode = "pep440"` and return release components only, excluding even the epoch.
+
+`parse_requirements(..., mode = "pep440")` retains each operand string in its `version` field
+because wildcard and `===` operands are patterns. Pass the same mode when evaluating its results.
+Malformed operands fail during evaluation. Other modes keep their existing parsed-list shape.
+
+These functions implement version predicates, not a package installer. They do not resolve
+packages, interpret environment markers, parse distribution names/URLs, or implement the
+collection-level prerelease policy (installed versions, stable preference and prerelease fallback).
+Predicate tests use the reference library with `prereleases=True`; callers own admission policy.
+
+PEP 440 tests consume checked-in fixtures generated with `packaging==26.0`; Python is a developer-only
+oracle, not a dependency of Starlark consumers. To regenerate or verify them:
+
+```sh
+python3 -m pip install -r tools/requirements-pep440.txt
+python3 tools/generate_pep440_cases.py
+python3 tools/generate_pep440_cases.py --check
+```
+
+See [the scope review](docs/pep440-review.md) before accepting the draft's public API.
 
 ## Paths
 
