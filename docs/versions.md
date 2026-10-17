@@ -236,9 +236,11 @@ versions.components("1.2.3", start=1, end=4, pad=True)  # "2.3.0"
 versions.components("1.2", start=-1, end=4, pad=True)   # "2.0.0"
 ```
 
-The legacy/SemVer slicing helpers select release parts rather than validating full suffix syntax.
-Python mode parses a full Python version first. No mode changes the written precision unless
-padding was requested.
+The legacy/SemVer `prefix`/`components` helpers retain permissive historical release slicing;
+they do not validate SemVer syntax, including numeric leading zeros or suffixes. For example,
+`prefix("01.2", 2, mode="semver")` returns `"1.2"`. Use `parse(..., mode="semver")` first when
+validation is required. The integer `major`/`minor`/`patch` helpers do use the selected full parser.
+Python mode also parses a full Python version before slicing. Padding is always opt-in.
 
 ## Compatible and matching requirements
 

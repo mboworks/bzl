@@ -227,11 +227,11 @@ def _version_components(version, *, start = 0, end = None, pad = False, mode = "
     """Returns selected release components as a dot-separated string.
 
     Args:
-        version: A version accepted by `parse`; suffixes are excluded.
+        version: Version to slice; legacy/SemVer slicing is permissive, not validation.
         start: Inclusive index, relative to the original length when negative.
         end: Exclusive index; None uses the original length.
         pad: Extend with zeros to an explicitly supplied positive end before slicing.
-        mode: Version comparison mode, inherited by selector expressions.
+        mode: Release-slicing mode; only "pep440" requires a full version parse.
 
     Returns:
         Selected release components, or an empty string for an empty selection.
@@ -251,9 +251,9 @@ def _version_prefix(version, count, *, mode = "semver"):
     """Returns at most count release components as a dot-separated string.
 
     Args:
-        version: A version accepted by `parse`; suffixes are excluded.
+        version: Version to slice; legacy/SemVer slicing is permissive, not validation.
         count: Non-negative number of components to select, without padding.
-        mode: Version comparison mode, inherited by selector expressions.
+        mode: Release-slicing mode; only "pep440" requires a full version parse.
 
     Returns:
         The release prefix, or an empty string when count is zero.
@@ -394,7 +394,7 @@ def _version_matches(version, pattern, *, skip_build = True, mode = "semver"):
         version: Candidate with numeric release components and SemVer suffixes.
         pattern: An exact version, or a numeric release prefix followed by .*.
         skip_build: Ignore build metadata, as SemVer requires for precedence.
-        mode: "semver" (default) or "legacy" for historical comparisons.
+        mode: "semver" (default), "legacy", or "pep440"; see docs/versions.md.
 
     Returns:
         Whether the exact version or whole-component release prefix matches.
@@ -419,7 +419,7 @@ def _version_compatible(version, required, *, skip_build = True, mode = "semver"
         required: Lower bound with at least two numeric release components.
             All but its last release component determine the required prefix.
         skip_build: Ignore build metadata for precedence, as SemVer requires.
-        mode: "semver" (default) or "legacy" for historical comparisons.
+        mode: "semver" (default), "legacy", or "pep440"; see docs/versions.md.
 
     Returns:
         Whether the candidate shares the required prefix and meets the lower bound.
