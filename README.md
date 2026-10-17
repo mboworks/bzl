@@ -42,9 +42,23 @@ after `1.0`, but does not satisfy `>1.0`.
 
 Requirements use `<`, `<=`, `>`, `>=`, `==`, `!=`, `~=` and the library's `!~=`, `~~=`, `!~~=`
 extensions. `~=1.2` permits compatible 1.x releases from 1.2; `~~=1.2.*` selects the 1.2 prefix with
-a lower bound at 1.2. `==1.2.*` is prefix matching without that extra lower bound. Function calls require parentheses; bare identifiers are reserved for future customizable
-constants and currently fail. Functions accept an implied candidate, such as `major()==23` or
-`components(start=1,end=3)==2.1`.
+a lower bound at 1.2. `==1.2.*` is prefix matching without that extra lower bound. Function calls require parentheses. Bare identifiers read a caller-supplied `constants` dictionary;
+`major==23` works when that dictionary binds `major`, while `major()==23` always calls the library
+helper. Functions accept an implied candidate, such as `components(start=1,end=3)==2.1`.
+
+```starlark
+candidate = "23.2.1"
+versions.check_all_requirements(
+    candidate,
+    "major==23,minor>=2",
+    constants={"major": versions.major(candidate), "minor": versions.minor(candidate)},
+    mode="semver",
+)  # True
+```
+
+Bindings also work inside calls, such as `prefix(width)`. Parsing retains references; callers can
+reuse parsed requirements and supply fresh bindings for each candidate. Unknown names fail when
+checked, and a constant never replaces a callable function.
 
 The [versions reference](docs/versions.md) documents every API, all three modes, parsing/normalization,
 metadata, compatible-release precision, function arguments, errors and prerelease behavior. The

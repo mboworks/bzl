@@ -12,8 +12,9 @@
   (`==`, `!=`). Extended compatibility adds a stable lower bound to prefix matching.
 - Add `versions.major`, `versions.minor`, `versions.patch` and allowlisted, nested version-function
   expressions with an implied or explicit candidate and literal positional/keyword arguments.
-- Require function-call syntax in version expressions, reserving bare identifiers for future
-  customizable constants; use `major()==23,minor()>=2` for individual component comparisons.
+- Add explicit `constants` dictionaries to requirement checkers for caller-defined names, resolved
+  at evaluation time on expression left sides and inside function arguments. Functions keep call
+  syntax (`major()`), independent of constants with the same name (`major`).
 - Add explicit `mode = "semver"` to parsing, comparisons, and requirements; existing APIs keep
   `mode = "legacy"` by default. SemVer mode zero-pads release comparisons and preserves distinct
   prerelease identifiers such as `rc1` and `rc.1`, with lexical `rc10 < rc2` ordering.

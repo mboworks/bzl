@@ -16,6 +16,12 @@
 
 _FUNCTIONS = ["major", "minor", "patch", "prefix", "components"]
 
+def _identifier(text):
+    if type(text) != "string" or not text or text in ["True", "False", "None"]:
+        return False
+    first = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+    return text[0] in first and all([char in first + "0123456789" for char in text.elems()])
+
 def _top_level(text, *, clauses = False):
     depth = 0
     quote = ""
@@ -105,6 +111,9 @@ def _parse(text):
         if index >= len(pending):
             break
         call = pending[index]
+        if _identifier(call):
+            nodes.append(struct(reference = call))
+            continue
         opening = call.find("(")
         if opening < 1 or not call.endswith(")"):
             fail("Unknown version function or reference: '{}'".format(call))
@@ -127,7 +136,7 @@ def _parse(text):
                 keyword_seen = True
             elif keyword_seen:
                 fail("Positional version function arguments must precede keyword arguments.")
-            if "(" in value and not value.startswith(('"', "'")):
+            if _identifier(value) or ("(" in value and not value.startswith(('"', "'"))):
                 parsed = struct(node = len(pending))
                 pending.append(value)
             else:
@@ -139,4 +148,4 @@ def _parse(text):
         nodes.append(struct(function = name, args = args, kwargs = kwargs))
     return nodes
 
-expression = struct(parse = _parse, clauses = lambda text: _split(text, ",", clauses = True), comparison = _comparison)
+expression = struct(identifier = _identifier, parse = _parse, clauses = lambda text: _split(text, ",", clauses = True), comparison = _comparison)
