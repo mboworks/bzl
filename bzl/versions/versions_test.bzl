@@ -787,7 +787,7 @@ def _versions_pep440_test(ctx):
     for arbitrary in ["foo(", "foo)", "foo'bar"]:
         _assert_eq(env, versions.check_one_requirement(arbitrary, "===" + arbitrary, mode = "pep440"), True)
         _assert_eq(env, versions.check_all_requirements(arbitrary, "===" + arbitrary, mode = "pep440"), True)
-    for clause in ["major()==23,minor()>=2", "major()==23,minor()>=2", "prefix(2)==23.2", "components(start=1,end=3)==2.1", "major(prefix(2))==23"]:
+    for clause in ["major()==23,minor()>=2", "prefix(2)==23.2", "components(start=1,end=3)==2.1", "major(prefix(2))==23"]:
         _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", clause, mode = "pep440"), True)
         _assert_eq(env, versions.check_all_requirements("1!23.2.1rc1", versions.parse_requirements(clause, mode = "pep440"), mode = "pep440"), True)
 
