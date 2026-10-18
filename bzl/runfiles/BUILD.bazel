@@ -10,6 +10,7 @@ bzl_library(
     name = "runfiles_bzl",
     srcs = ["runfiles.bzl"],
     visibility = ["//visibility:public"],
+    deps = ["//bzl/paths"],
 )
 
 alias(

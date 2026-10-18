@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Construction of default runfiles lookup keys for Bazel File objects."""
 
+load("//bzl/paths:paths.bzl", "paths")
+
 def _key(ctx, file):
     """Returns the repository-qualified key accepted by runtime runfiles libraries.
 
@@ -16,6 +18,6 @@ def _key(ctx, file):
     """
     if file.short_path.startswith("../"):
         return file.short_path[3:]
-    return ctx.workspace_name + "/" + file.short_path
+    return paths.join(ctx.workspace_name, file.short_path)
 
 runfiles = struct(key = _key)
