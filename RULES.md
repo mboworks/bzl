@@ -1,3 +1,5 @@
+# Rules
+
 Some rules for the code layout and its development.
 
 * Everything is under the Apache 2.0 license, see [LICENSE](LICENSE).

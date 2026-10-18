@@ -1,3 +1,8 @@
+# 0.7.1
+
+- Automate README installation-version preparation and reject stale release references
+  during validation and release publication.
+
 # 0.7.0
 
 - Add `versions.with_mode` for immutable API objects with a consistent caller-selected default
