@@ -1,3 +1,8 @@
+# 0.8.1
+
+- Validate public libraries as a BCR dependency and run the full test suite with
+  development dependencies enabled in the release root.
+
 # 0.8.0
 
 - Add `versions.normalize_tuple` and `versions.normalize_string` for grouping
