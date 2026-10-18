@@ -1,5 +1,8 @@
 # 0.7.1
 
+- Add stable version sorting, predicate filtering, earliest/latest selection with data-preserving
+  keys, and an explicit SemVer prerelease-admission helper.
+
 - Automate README installation-version preparation and reject stale release references
   during validation and release publication.
 

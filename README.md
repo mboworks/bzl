@@ -90,6 +90,20 @@ modes use [SemVer](https://semver.org/) and the
 [Python version specification](https://packaging.python.org/en/latest/specifications/version-specifiers/)
 with the documented differences and extensions.
 
+Collection helpers preserve associated data and compose version ordering with explicit predicates:
+
+```starlark
+semver = versions.with_mode("semver")
+releases = ["23.1.0", "23.1.2", "24.0.0-rc1"]
+semver.sorted(releases)                                             # Ascending version order.
+semver.filter(releases, exclude_requirements=semver.is_prerelease)  # Stable releases, input order.
+semver.latest(releases, exclude_requirements=semver.is_prerelease)  # "23.1.2"
+```
+
+See [filtering, sorting and picking versions](docs/versions.md#filtering-sorting-and-picking-versions)
+for record/dictionary keys, include/exclude predicates, tie behavior, defaults and explicit
+prerelease admission.
+
 ## Paths
 
 [`bzl/paths`](docs/paths.md) provides lexical normalization, parent collapse, joining, absolute-path
