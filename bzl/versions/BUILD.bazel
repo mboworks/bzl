@@ -16,6 +16,7 @@
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(":collections_test.bzl", "collections_test_suite")
+load(":normalize_test.bzl", "normalize_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
 
 package(default_visibility = ["//visibility:private"])
@@ -49,3 +50,5 @@ alias(
 versions_test_suite()
 
 collections_test_suite()
+
+normalize_test_suite()

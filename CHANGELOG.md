@@ -1,5 +1,8 @@
 # 0.8.0
 
+- Add `versions.normalize_tuple` and `versions.normalize_string` for grouping
+  interleaved version suffixes with configurable string separators.
+
 - Add `runfiles.key(ctx, file)` for constructing runtime lookup keys from Bazel files.
 
 - Add stable version sorting, predicate filtering, earliest/latest selection with data-preserving
