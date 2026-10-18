@@ -14,7 +14,7 @@ The following libraries are implemented:
 ## Versions
 
 [`bzl/versions`](docs/versions.md) provides version parsing, precedence comparisons, release-component
-selection, compatible-release checks and wildcard matching. Requirement strings support ANDed
+selection, structural normalization, compatible-release checks and wildcard matching. Requirement strings support ANDed
 clauses and version-function expressions.
 
 ```starlark

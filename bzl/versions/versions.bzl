@@ -97,6 +97,111 @@ def _split_version_relese_build(version, *, skip_build = False):
     else:
         return [version]
 
+def _normalization_groups(version, prefix = None):
+    if type(version) == "string":
+        parts = []
+        component = ""
+        for char in version.elems():
+            if char in ".-+":
+                if not component:
+                    fail("Version normalization requires non-empty components.")
+                parts.append(component)
+                component = ""
+                if char != ".":
+                    parts.append(char)
+            else:
+                component += char
+        if version:
+            if not component:
+                fail("Version normalization requires non-empty components.")
+            parts.append(component)
+    elif type(version) in ["list", "tuple"]:
+        parts = version
+    else:
+        fail("Version normalization requires a string, list, or tuple.")
+
+    groups = {"": [], "+": [], "-": []}
+    group = ""
+    needs_component = True
+    for part in parts:
+        if type(part) not in ["string", "int"]:
+            fail("Version normalization components must be strings or integers.")
+        if part in ["-", "+"]:
+            if needs_component:
+                fail("Version normalization requires non-empty components/groups.")
+            group = part if prefix == None else "-"
+            needs_component = True
+        else:
+            if part == "":
+                fail("Version normalization requires non-empty components.")
+            groups[group].append(part)
+            needs_component = False
+    if parts and needs_component:
+        fail("Version normalization requires non-empty components/groups.")
+    return [
+        ("", groups[""]),
+        ("-" if prefix == None else prefix, groups["-"]),
+        ("+", groups["+"]),
+    ]
+
+def _normalize_tuple(version):
+    """Groups release, '-' and '+' components, preserving order within each group.
+
+    Args:
+        version: String or list/tuple of string/integer components. Strings are
+            tokenized on '.', '-' and '+'; sequences already supply component
+            boundaries, with standalone '-' and '+' acting as group markers.
+
+    Returns:
+        Tuple with release components first, then '-' components, then '+'
+        components. String spelling and sequence component types are preserved.
+        Empty input returns an empty tuple; empty components/groups fail.
+        This structural operation is independent of version parsing modes.
+    """
+    groups = _normalization_groups(version)
+    result = list(groups[0][1])
+    for marker, components in groups[1:]:
+        if components:
+            result.extend([marker] + components)
+    return tuple(result)
+
+def _normalize_string(version, *, sep = ".", prefix = None):
+    """Groups version components and renders them with configurable separators.
+
+    Args:
+        version: String or component list/tuple; see normalize_tuple.
+        sep: String joining suffix components, including the empty string.
+            None uses the output group's marker. A dict with exactly '-' and
+            '+' keys selects a string/None separator for each distinct group.
+            Release components always use dots.
+        prefix: None retains distinct '-' and '+' groups. A string merges all
+            suffix components in original encounter order under that prefix.
+            Cannot be combined with a sep dict.
+
+    Returns:
+        Normalized string. This groups components without validating SemVer or
+        PEP 440; it does not infer, split, or rewrite identifiers in sequences.
+        Prefixes are output controls, not additional input delimiters.
+    """
+    if prefix != None and type(prefix) != "string":
+        fail("Version normalization prefix must be a string or None.")
+    if type(sep) == "dict":
+        if prefix != None:
+            fail("Version normalization cannot combine a shared prefix with a sep dict.")
+        if len(sep) != 2 or "-" not in sep or "+" not in sep:
+            fail("Version normalization sep dict requires exactly '-' and '+' keys.")
+        if any([value != None and type(value) != "string" for value in sep.values()]):
+            fail("Version normalization sep values must be strings or None.")
+    elif sep != None and type(sep) != "string":
+        fail("Version normalization sep must be a string, None, or dict.")
+    groups = _normalization_groups(version, prefix)
+    result = [".".join([str(part) for part in groups[0][1]])]
+    for marker, components in groups[1:]:
+        if components:
+            separator = sep[marker] if type(sep) == "dict" else sep
+            result.append(marker + (marker if separator == None else separator).join([str(part) for part in components]))
+    return "".join(result)
+
 def _parse_build(version):
     parts = [_maybe_int(v) for v in version.split(".")]
     return parts
@@ -859,6 +964,8 @@ def _with_mode(mode):
     methods = {name: _bind_mode(function, mode) for name, function in _API_FUNCTIONS.items() if name not in ["filter", "sorted", "earliest", "latest"]}
     return struct(
         with_mode = _with_mode,
+        normalize_tuple = _normalize_tuple,
+        normalize_string = _normalize_string,
         filter = lambda *args, **kwargs: _version_filter(*args, **dict({"mode": mode}, **kwargs)),
         sorted = lambda *args, **kwargs: _version_sorted(*args, **dict({"mode": mode}, **kwargs)),
         earliest = lambda *args, **kwargs: _version_earliest(*args, **dict({"mode": mode}, **kwargs)),
@@ -899,4 +1006,9 @@ _API_FUNCTIONS = {
     "sorted": _version_sorted,
 }
 
-versions = struct(with_mode = _with_mode, **_API_FUNCTIONS)
+versions = struct(
+    with_mode = _with_mode,
+    normalize_tuple = _normalize_tuple,
+    normalize_string = _normalize_string,
+    **_API_FUNCTIONS
+)

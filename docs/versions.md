@@ -34,6 +34,8 @@ versions or requirements between calls.
 | `local(version, *, mode="pep440")`                                                                 | Normalized Python local label                         | `pep440`     |
 | `compatible(version, required, *, skip_build=True, mode="semver")`                                 | Compatible-release predicate                          | `semver`     |
 | `matches(version, pattern, *, skip_build=True, mode="semver")`                                     | Exact or trailing-wildcard match                      | `semver`     |
+| `normalize_tuple(version)`                                                                         | Grouped component tuple                               | Independent  |
+| `normalize_string(version, *, sep=".", prefix=None)`                                               | Grouped version string                                | Independent  |
 
 Existing parsing/comparison APIs default to historical behavior; the newer component/matching
 helpers default to SemVer mode, except Python-only `local`, which defaults to PEP 440.
@@ -44,6 +46,84 @@ and `gt`/`ge` mean greater than/at least. `cmp` compares precedence directly. In
 An unknown mode fails. `error` supplies the historical unsupported-input diagnostic in legacy
 parsing, or the unsupported-comparator diagnostic in `compare`; malformed standards-mode input
 uses the relevant parser's diagnostic.
+
+### Structural normalization
+
+`normalize_tuple(version)` groups components into release, `-`, and `+` groups,
+returning a tuple. `normalize_string(version, *, sep=".", prefix=None)` renders the same
+normalized components as a string. Both accept strings, lists, or tuples and
+are also available on `versions.with_mode(...)` objects. Their behavior is
+mode-independent; neither accepts a `mode` argument.
+
+For string input, `.`, `-`, and `+` mark component boundaries. A `-` or `+`
+switches the active suffix group; a dot continues the current group. Repeated,
+interleaved suffix groups are collected in encounter order, then the `-` group
+is emitted before the `+` group. Components are neither sorted nor deduplicated.
+String components retain their spelling, including leading zeros and case.
+Release components always use dots when rendered.
+
+Lists and tuples already supply component boundaries: only standalone `"-"`
+and `"+"` elements switch groups. Other string elements are opaque identifiers;
+embedded dots, hyphens, and plus signs remain intact. Integer components retain
+their type in tuple output and are converted to strings only when rendered.
+Inputs are not modified. Empty input produces `()` or `""`; empty components,
+leading/trailing markers, consecutive markers, and non-string/non-integer
+sequence elements fail.
+
+```starlark
+value = "123+a.b-c.d+e.f-g.h"
+versions.normalize_tuple(value)             # ("123", "-", "c", "d", "g", "h", "+", "a", "b", "e", "f")
+versions.normalize_string(value)            # "123-c.d.g.h+a.b.e.f"
+versions.normalize_string(value, sep="")    # "123-cdgh+abef"
+versions.normalize_string(value, sep=None)  # "123-c-d-g-h+a+b+e+f"
+versions.normalize_string(value, sep="/")   # "123-c/d/g/h+a/b/e/f"
+```
+
+`sep` joins components **within suffix groups**. Any string is a literal
+separator, including `""`, `"auto"`, and `"+-"`. `None` uses each group's marker
+(`-` or `+`) as its separator. The initial marker of each suffix group is always
+retained, even with `sep=""`.
+
+For distinct group separators, pass `sep={"-": ..., "+": ...}` with exactly
+those two keys. Each value is a string or `None` with the same meaning above.
+For example, `sep={"-": None, "+": "."}` produces `123-c-d-g-h+a.b.e.f`.
+
+`normalize_string` also accepts `prefix`: `None` (the default) retains the
+separate groups. Any string merges all suffix components under a shared output
+prefix, preserving **original encounter order across both groups**. The empty
+string suppresses the prefix. With a shared prefix, `sep=None` repeats that
+prefix between components. A separator dict with a shared prefix fails as
+ambiguous, even when both values happen to match.
+
+```starlark
+value = "123+a.b-c.d+e.f-g.h"
+versions.normalize_string(value, prefix="#")            # "123#a.b.c.d.e.f.g.h"
+versions.normalize_string(value, prefix="#", sep=None)  # "123#a#b#c#d#e#f#g#h"
+versions.normalize_string(value, prefix="#", sep="")    # "123#abcdefgh"
+```
+
+Apply shared-prefix rendering to the original input: `normalize_tuple` has
+already reordered the two groups and cannot retain their original interleaving.
+Both functions share the internal grouping implementation, which merges before
+reordering when a shared prefix is requested. Prefixes and separators are
+output controls, not extra input delimiters; custom output need not round-trip.
+
+This is structural normalization, not SemVer or PEP 440 validation. In
+particular, string input treats every hyphen as a group boundary, whereas a
+SemVer parser may retain hyphens inside identifiers. To retain the boundaries
+chosen by a standards parser, pass its parsed component sequence:
+
+```starlark
+semver = versions.with_mode("semver")
+parts = (23, 1, 0, "-", "rc1", "+", "linux-x86", "001")
+semver.normalize_string(parts)                             # "23.1.0-rc1+linux-x86.001"
+semver.normalize_string(semver.parse("23.1.0-rc1+linux"))  # "23.1.0-rc1+linux"
+```
+
+Normalization preserves the supplied components; it cannot recover spelling
+already changed by `parse`. PEP 440 named records are not component sequences
+and are not accepted. Custom separators and generalized grouping are not
+promises that the rendered output conforms to a version standard.
 
 ### Consistent defaults with `with_mode`
 
@@ -61,7 +141,8 @@ python.local("1.2+Ubuntu-01")                                     # "ubuntu.1"
 ```
 
 The returned immutable Starlark struct exposes the same functions as `versions`, including
-`with_mode`. Each wrapper supplies the selected mode only when the call omits it. All other
+`with_mode`. Mode-sensitive wrappers supply the selected mode only when the call omits it.
+The two structural normalization functions are exposed directly and do not use a mode. All other
 arguments, return values and errors come from the original function. In particular keyword-only
 options such as `constants`, `skip_build`, slicing/padding, and diagnostics still work.
 
@@ -70,7 +151,7 @@ This does not change the object or subsequent calls. `semver.with_mode("legacy")
 independent API. The original `versions` defaults remain unchanged; no global or ambient state is
 used. Unknown modes fail when the API is created or when an explicit override is evaluated.
 
-The bound mode applies to **every** method, even one with a different standalone default:
+The bound mode applies to every mode-sensitive method, even one with a different standalone default:
 `semver.local("1.2+abc")` fails because local labels require Python mode. Use the Python API or an
 explicit per-call override. Requirement checks forward their effective mode to every nested
 expression call. Expression syntax continues to inherit that mode rather than accepting its own
