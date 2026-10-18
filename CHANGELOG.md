@@ -1,4 +1,4 @@
-# 0.7.1
+# 0.8.0
 
 - Add `runfiles.key(ctx, file)` for constructing runtime lookup keys from Bazel files.
 
