@@ -155,7 +155,7 @@ However, future versions may drop Windows support.
 See [mboworks/bzl releases](https://github.com/mboworks/bzl/releases) to replace the version number.
 
 ```starlark
-bazel_dep(name = "mboworks_bzl", version = "0.7.0")
+bazel_dep(name = "mboworks_bzl", version = "0.8.0")
 ```
 
 ### Dependencies
