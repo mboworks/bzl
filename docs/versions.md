@@ -646,28 +646,6 @@ For toolchain catalogues, first restrict entries to compatible host/platform arc
 operations do not query registries, download archives, or determine platform compatibility. Preserve
 archive data with `key`, and select only among the candidates your toolchain can actually use.
 
-### Reproducing the LLVM consumer check
-
-The [consumer adaptation patch](../tools/toolchains_llvm_collections.patch) targets
-[toolchains_llvm PR 909](https://github.com/bazel-contrib/toolchains_llvm/pull/909) at commit
-`ac4055749414b749173bdfa820f5276d4c5714c8`. It replaces the private insertion sort, first/latest
-selection loop, and parsed-clause prerelease inspection with this API. LLVM-specific constants,
-archive discovery and host compatibility remain in the toolchain implementation.
-
-To reproduce in a disposable toolchains_llvm checkout, with `BZL_SOURCE` set to the absolute path
-of this bzl checkout:
-
-```sh
-git checkout ac4055749414b749173bdfa820f5276d4c5714c8
-git apply "${BZL_SOURCE}/tools/toolchains_llvm_collections.patch"
-USE_BAZEL_VERSION=7.2.1 bazel test \
-  --override_module="mboworks_bzl=${BZL_SOURCE}" //toolchain/internal/...
-```
-
-This runs the selector, distribution, prerelease and host-selection golden tests against the
-modified consumer. Dependency downloads may require network access; version selection itself uses
-the pinned catalogue. The override is a development proof, not a published dependency update.
-
 ## Parsed requirements and failures
 
 `check_all_requirements` accepts a comma-separated string or a list of strings/parsed records.
