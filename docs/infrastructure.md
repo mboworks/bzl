@@ -39,6 +39,15 @@ be retried independently; its failure does not require recreating a release or m
 Release helpers, numeric tags, and version agreement keep their existing contracts. No module
 dependency versions change in this rollout.
 
+### Registry validation
+
+BCR builds the public `paths`, `runfiles`, and `versions` library targets from an
+anonymous consumer module. It separately runs `bazel test //...` from the release
+root through `bcr_test_module`, preserving development-only repositories such as
+`runfiles_fixture`. Both tasks cover Bazel 7, 8, and 9 on Linux, macOS, and Windows.
+Do not recursively build the development tests from a dependency context: Bazel
+intentionally omits that dependency's development-only repositories.
+
 ### Published-site budget
 
 Each publisher fetches only the latest `coverage-pages` snapshot with `--depth=1` and no tags.
