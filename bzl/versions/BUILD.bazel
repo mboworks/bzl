@@ -15,6 +15,7 @@
 """A starlark implementation of versioning functions that mostly follow semver."""
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":collections_test.bzl", "collections_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
 
 package(default_visibility = ["//visibility:private"])
@@ -46,3 +47,5 @@ alias(
 )
 
 versions_test_suite()
+
+collections_test_suite()

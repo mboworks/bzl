@@ -482,6 +482,187 @@ both string and pre-parsed requirements; a missing name fails at evaluation. Reu
 across candidates and construct a fresh dictionary for each candidate when values depend on its
 version. The library neither recomputes values nor mutates the supplied dictionary.
 
+## Filtering, sorting and picking versions
+
+Collection operations preserve your original items, including their version spelling and associated
+metadata. They accept a list or tuple and never mutate it. Pass dictionary `keys()`, `values()` or
+`items()` explicitly to say what should be returned. Collection operations default to `semver`;
+`versions.with_mode(...)` changes that default, and an explicit `mode` overrides it.
+
+| Operation         | Result                                                  | Optional keyword arguments                                                                       |
+| :---------------- | :------------------------------------------------------ | :----------------------------------------------------------------------------------------------- |
+| `sorted(items)`   | New list in stable version order                        | `key`, `reverse=False`, `skip_build=True`, `mode`                                                |
+| `filter(items)`   | New list of matching items in input order               | `key`, `include_requirements`, `exclude_requirements`, `mode`                                    |
+| `earliest(items)` | First item in a stable ascending sort of matching items | `key`, `include_requirements`, `exclude_requirements`, `default=None`, `skip_build=True`, `mode` |
+| `latest(items)`   | Last item in a stable ascending sort of matching items  | `key`, `include_requirements`, `exclude_requirements`, `default=None`, `skip_build=True`, `mode` |
+
+`key=None` treats each item as its version. Otherwise `key(item)` extracts the version **once per
+item per operation**. Predicates receive this extracted value, not the surrounding record and not
+an automatically normalized replacement. The original item is returned.
+
+### Plain versions and ordering modes
+
+```starlark
+semver = versions.with_mode("semver")
+
+semver.sorted(["2.0", "1.10", "1.2"])                 # ["1.2", "1.10", "2.0"]
+semver.sorted(["2.0", "1.10", "1.2"], reverse=True)   # ["2.0", "1.10", "1.2"]
+semver.earliest(["2.0", "1.10", "1.2"])               # "1.2"
+semver.latest(["2.0", "1.10", "1.2"])                 # "2.0"
+```
+
+Equal-precedence items retain input order even with `reverse=True`. In SemVer mode, `"1.2"` and
+`"1.2.0"` compare equally, and build metadata is ignored by default. Nothing is deduplicated:
+
+```starlark
+same = ["1.2.0+001", "1.2", "1.2+1"]
+semver.sorted(same)                  # All three, in their original order.
+semver.sorted(same, reverse=True)    # Still in their original order.
+semver.earliest(same)                # "1.2.0+001": first tie.
+semver.latest(same)                  # "1.2+1": last tie.
+```
+
+Use `skip_build=False` to apply the existing SemVer/legacy build-metadata tie breaker. PEP 440
+ordering always includes local labels, as with `cmp`; `skip_build` does not change that behavior.
+The other modes use their existing precedence rules:
+
+```starlark
+python = versions.with_mode("pep440")
+python.sorted(["1.0", "1.0rc10", "1.0rc2", "1.0.dev1"])
+# ["1.0.dev1", "1.0rc2", "1.0rc10", "1.0"]
+
+versions.with_mode("legacy").sorted(["1.2.0", "1.2"])
+# ["1.2", "1.2.0"]: legacy does not zero-pad releases.
+```
+
+### Records, tuples and dictionaries
+
+```starlark
+releases = [
+    struct(version="2.0", archive="new.tar.xz"),
+    struct(version="1.0", archive="old.tar.xz"),
+]
+ordered = semver.sorted(releases, key=lambda release: release.version)
+# [releases[1], releases[0]]: records, not extracted version strings.
+chosen = semver.latest(releases, key=lambda release: release.version)
+# chosen.archive == "new.tar.xz"
+
+catalogue = {"2.0": "new.tar.xz", "1.0": "old.tar.xz"}
+ordered_pairs = semver.sorted(catalogue.items(), key=lambda entry: entry[0])
+# [("1.0", "old.tar.xz"), ("2.0", "new.tar.xz")]
+
+by_name = {"new": releases[0], "old": releases[1]}
+chosen_pair = semver.latest(by_name.items(), key=lambda entry: entry[1].version)
+# ("new", releases[0]): preserve both the dictionary key and its value.
+```
+
+Dictionary entries and other `(version, data)` tuples need no special sorting algorithm: `key`
+identifies the version. A dictionary passed directly fails instead of guessing your intent.
+
+### Inclusion and exclusion are functions, not expression lists
+
+Both callbacks default to `None`. Inclusion must return `True` for an item to proceed; exclusion
+must return `False` for it to survive. Exclusion wins if both return `True`. The exact sequence is:
+
+1. Extract the version with `key`, if supplied.
+2. Evaluate `include_requirements(version)`, if supplied; skip the item if false.
+3. Evaluate `exclude_requirements(version)`, if supplied; skip the item if true.
+4. Validate the retained version using the selected mode, then retain the original item.
+
+Callbacks must return actual booleans, not truthy strings or integers. Exclusion is not called for
+an item rejected by inclusion. Rejected values are not parsed by the collection operation, so an
+inclusion predicate may screen malformed data before version validation. Retained values are
+validated even for singleton lists and `filter`, which does not sort. Callback failures propagate.
+An empty collection still validates mode and callback argument types, but calls no callbacks.
+
+Use ordinary Starlark `and`, `or`, and `not` to make grouping explicit:
+
+```starlark
+matching = semver.filter(
+    ["23.0", "23.1", "23.1.2", "23.2-rc1", "24.0"],
+    include_requirements=lambda v: semver.major(v) == 23 and semver.ge(v, "23.1"),
+    exclude_requirements=lambda v: semver.is_prerelease(v) or semver.eq(v, "23.1.2"),
+)
+# ["23.1"]
+```
+
+There is no implicit AND/OR interpretation of lists, no additional `requirements` attribute, and
+no hidden prerelease preference. Without callbacks, prereleases participate in ordinary version
+ordering. For example, `latest(["23.1", "24.0-rc1"])` returns `"24.0-rc1"` in SemVer mode.
+Predicates are ordinary functions; selecting a collection mode does not change their bodies.
+Use methods from the same mode-bound API inside predicates when consistent semantics are wanted.
+
+### Reusing requirement expressions
+
+The existing expression parser and checker remain available. Parse once when checking many
+candidates, then close over the result in your predicate:
+
+```starlark
+requirements = semver.parse_requirements("major()==23,>=23.1,<24")
+chosen = semver.latest(
+    releases,
+    key=lambda release: release.version,
+    include_requirements=lambda v: semver.check_all_requirements(v, requirements),
+    exclude_requirements=semver.is_prerelease,
+    default=None,
+)
+```
+
+`default` is returned unchanged when no item survives, including for empty input. A default does
+not suppress invalid-version or callback errors. If `None` itself can be an original item (with
+a custom `key`), use a distinct default such as a sentinel struct to distinguish no match.
+
+`earliest` and `latest` perform a linear selection rather than sorting the entire list. Their
+results equal stable ascending sorting followed by `[0]` and `[-1]`, respectively. This includes
+tie behavior: earliest takes the first equal-precedence item; latest takes the last. Use `filter`
+and `sorted` separately when you need all candidates or custom post-processing.
+
+### Prerelease filtering is caller-owned
+
+Use the existing `is_prerelease` predicate to choose whether prereleases participate. This works
+in every mode; Python mode also identifies development releases as prereleases. No collection
+operation inspects requirement clauses to infer a separate admission policy.
+
+```starlark
+semver = versions.with_mode("semver")
+values = ["23.1.0", "24.0.0-rc1"]
+semver.latest(values)                                                          # "24.0.0-rc1"
+semver.latest(values, exclude_requirements=semver.is_prerelease)               # "23.1.0"
+semver.latest(values, include_requirements=semver.is_prerelease)               # "24.0.0-rc1"
+
+python = versions.with_mode("pep440")
+python.latest(["1.0", "2.0.dev1"])                                             # "2.0.dev1"
+python.latest(["1.0", "2.0.dev1"], exclude_requirements=python.is_prerelease)  # "1.0"
+```
+
+A caller can expose a boolean option without inspecting requirement syntax:
+
+```starlark
+allow_prereleases = False
+chosen = semver.latest(
+    values,
+    exclude_requirements=None if allow_prereleases else semver.is_prerelease,
+)
+```
+
+To allow prereleases within a particular range, just use that range as the inclusion predicate:
+
+```starlark
+requirements = semver.parse_requirements(">=23.1.0-rc1,<23.1.0")
+chosen = semver.latest(
+    ["23.1.0-rc1", "23.1.0-rc2", "23.1.0", "23.2.0-rc1"],
+    include_requirements=lambda v: semver.check_all_requirements(v, requirements),
+)
+# "23.1.0-rc2"
+```
+
+An explicit exclusion still wins: adding `exclude_requirements=semver.is_prerelease` to this
+example leaves no matches and returns `None`. Eligibility is exactly what your predicates express.
+
+For toolchain catalogues, first restrict entries to compatible host/platform archives. These
+operations do not query registries, download archives, or determine platform compatibility. Preserve
+archive data with `key`, and select only among the candidates your toolchain can actually use.
+
 ## Parsed requirements and failures
 
 `check_all_requirements` accepts a comma-separated string or a list of strings/parsed records.

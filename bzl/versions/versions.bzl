@@ -758,13 +758,113 @@ def _parse_requirements(requirements, *, mode = "legacy"):
         for req in expression.clauses(requirements)
     ]
 
+def _collection_arguments(items, key, include_requirements, exclude_requirements, mode):
+    _check_mode(mode)
+    if type(items) not in ["list", "tuple"]:
+        fail("Version collections require a list or tuple; pass dictionary keys(), values(), or items() explicitly.")
+    for name, callback in [("key", key), ("include_requirements", include_requirements), ("exclude_requirements", exclude_requirements)]:
+        if callback != None and type(callback) not in ["function", "builtin_function_or_method"]:
+            fail("{} must be a function or None.".format(name))
+
+def _collection_predicate(predicate, version, name):
+    result = predicate(version)
+    if type(result) != "bool":
+        fail("{} must return a bool.".format(name))
+    return result
+
+def _collection_entries(items, key, include_requirements, exclude_requirements, mode, skip_build):
+    _collection_arguments(items, key, include_requirements, exclude_requirements, mode)
+    entries = []
+    for item in items:
+        version = item if key == None else key(item)
+        if include_requirements != None and not _collection_predicate(include_requirements, version, "include_requirements"):
+            continue
+        if exclude_requirements != None and _collection_predicate(exclude_requirements, version, "exclude_requirements"):
+            continue
+
+        # Validate even a single accepted value, retaining its original representation.
+        _version_cmp(version, version, mode = mode, skip_build = skip_build)
+        entries.append((item, version))
+    return entries
+
+def _version_filter(items, *, key = None, include_requirements = None, exclude_requirements = None, mode = "semver"):
+    """Returns original matching items in input order; predicates receive extracted versions."""
+    return [entry[0] for entry in _collection_entries(items, key, include_requirements, exclude_requirements, mode, True)]
+
+def _merge_version_entries(left, right, reverse, skip_build, mode):
+    result = []
+    i = 0
+    j = 0
+    for _ in range(len(left) + len(right)):
+        take_left = j == len(right)
+        if i < len(left) and j < len(right):
+            comparison = _version_cmp(left[i][1], right[j][1], skip_build = skip_build, mode = mode)
+            take_left = comparison >= 0 if reverse else comparison <= 0
+        if take_left:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    return result
+
+def _version_sorted(items, *, key = None, reverse = False, skip_build = True, mode = "semver"):
+    """Returns a new stable version-ordered list without changing items or their data."""
+    if type(reverse) != "bool":
+        fail("reverse must be a bool.")
+    entries = _collection_entries(items, key, None, None, mode, skip_build)
+
+    # Bottom-up merge sort avoids recursion and comparator-key encoding. Equality
+    # always takes the left entry, including descending order.
+    width = 1
+    for _ in range(len(entries)):
+        if width >= len(entries):
+            break
+        merged = []
+        for start in range(0, len(entries), 2 * width):
+            merged.extend(_merge_version_entries(entries[start:start + width], entries[start + width:start + 2 * width], reverse, skip_build, mode))
+        entries = merged
+        width *= 2
+    return [entry[0] for entry in entries]
+
+def _version_pick(items, key, include_requirements, exclude_requirements, default, skip_build, mode, latest):
+    entries = _collection_entries(items, key, include_requirements, exclude_requirements, mode, skip_build)
+    if not entries:
+        return default
+    best = entries[0]
+    for entry in entries[1:]:
+        comparison = _version_cmp(entry[1], best[1], skip_build = skip_build, mode = mode)
+        if (latest and comparison >= 0) or (not latest and comparison < 0):
+            best = entry
+    return best[0]
+
+def _version_earliest(items, *, key = None, include_requirements = None, exclude_requirements = None, default = None, skip_build = True, mode = "semver"):
+    """Returns the first item in a stable ascending sort of matching items, or default."""
+    return _version_pick(items, key, include_requirements, exclude_requirements, default, skip_build, mode, False)
+
+def _version_latest(items, *, key = None, include_requirements = None, exclude_requirements = None, default = None, skip_build = True, mode = "semver"):
+    """Returns the last item in a stable ascending sort of matching items, or default."""
+    return _version_pick(items, key, include_requirements, exclude_requirements, default, skip_build, mode, True)
+
 def _bind_mode(function, mode):
     return lambda *args, **kwargs: function(*args, **dict({"mode": mode}, **kwargs))
 
 def _with_mode(mode):
     """Returns an immutable versions API with one default mode; explicit call modes take precedence."""
     _check_mode(mode)
-    return struct(with_mode = _with_mode, **{name: _bind_mode(function, mode) for name, function in _API_FUNCTIONS.items()})
+
+    # Starlark detects recursion by function definition, not closure instance.
+    # Collection callbacks may call other bound methods, so each collection
+    # entry point needs its own wrapper rather than sharing _bind_mode's lambda.
+    methods = {name: _bind_mode(function, mode) for name, function in _API_FUNCTIONS.items() if name not in ["filter", "sorted", "earliest", "latest"]}
+    return struct(
+        with_mode = _with_mode,
+        filter = lambda *args, **kwargs: _version_filter(*args, **dict({"mode": mode}, **kwargs)),
+        sorted = lambda *args, **kwargs: _version_sorted(*args, **dict({"mode": mode}, **kwargs)),
+        earliest = lambda *args, **kwargs: _version_earliest(*args, **dict({"mode": mode}, **kwargs)),
+        latest = lambda *args, **kwargs: _version_latest(*args, **dict({"mode": mode}, **kwargs)),
+        **methods
+    )
 
 _API_FUNCTIONS = {
     "build": _version_build,
@@ -776,11 +876,14 @@ _API_FUNCTIONS = {
     "component": _version_component,
     "component_count": _version_component_count,
     "components": _version_components,
+    "earliest": _version_earliest,
     "eq": _version_eq,
+    "filter": _version_filter,
     "ge": _version_ge,
     "gt": _version_gt,
     "has_prerelease_prefix": _version_has_prerelease_prefix,
     "is_prerelease": _version_is_prerelease,
+    "latest": _version_latest,
     "le": _version_le,
     "local": _version_local,
     "lt": _version_lt,
@@ -793,6 +896,7 @@ _API_FUNCTIONS = {
     "patch": _version_patch,
     "prefix": _version_prefix,
     "prerelease": _version_prerelease,
+    "sorted": _version_sorted,
 }
 
 versions = struct(with_mode = _with_mode, **_API_FUNCTIONS)
