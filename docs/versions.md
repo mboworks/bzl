@@ -53,11 +53,11 @@ Create a mode-bound API object when a client consistently uses one scheme:
 semver = versions.with_mode("semver")
 python = versions.with_mode("pep440")
 
-semver.eq("1.2", "1.2.0")                           # True
-semver.prerelease("1.2.3-rc1")                       # "rc1"
+semver.eq("1.2", "1.2.0")                                         # True
+semver.prerelease("1.2.3-rc1")                                    # "rc1"
 semver.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc1"')  # True
-python.is_prerelease("1.2.post1.dev2")               # True
-python.local("1.2+Ubuntu-01")                       # "ubuntu.1"
+python.is_prerelease("1.2.post1.dev2")                            # True
+python.local("1.2+Ubuntu-01")                                     # "ubuntu.1"
 ```
 
 The returned immutable Starlark struct exposes the same functions as `versions`, including
@@ -107,9 +107,9 @@ Prerelease parts are separated at dots. A nonnumeric identifier ending in digits
 into its textual prefix and numeric suffix; a single hyphen immediately before the suffix is removed:
 
 ```starlark
-versions.parse("1.2.3-rc1", mode="legacy")    # [1, 2, 3, "-", "rc", 1]
-versions.parse("1.2.3-rc.1", mode="legacy")   # [1, 2, 3, "-", "rc", 1]
-versions.parse("1.2.3-rc-1", mode="legacy")   # [1, 2, 3, "-", "rc", 1]
+versions.parse("1.2.3-rc1", mode="legacy")       # [1, 2, 3, "-", "rc", 1]
+versions.parse("1.2.3-rc.1", mode="legacy")      # [1, 2, 3, "-", "rc", 1]
+versions.parse("1.2.3-rc-1", mode="legacy")      # [1, 2, 3, "-", "rc", 1]
 versions.parse("1.2.3-alpha--2", mode="legacy")  # [1, 2, 3, "-", "alpha-", 2]
 ```
 
@@ -118,7 +118,7 @@ precede text identifiers, and text compares lexically. Component count breaks ti
 available parts, with the historical special handling of prerelease/build delimiters:
 
 ```starlark
-versions.lt("1.2", "1.2.0", mode="legacy")       # True
+versions.lt("1.2", "1.2.0", mode="legacy")             # True
 versions.eq("1.2.3-rc1", "1.2.3-rc.1", mode="legacy")  # True
 versions.lt("1.2.3-rc2", "1.2.3-rc10", mode="legacy")  # True
 ```
@@ -161,7 +161,7 @@ in ASCII order; equal shared identifiers are followed by the shorter prerelease 
 from `rc.1`. Use `rc.10` when numeric RC ordering is intended.
 
 ```starlark
-versions.eq("1.2", "1.2.0.0", mode="semver")       # True
+versions.eq("1.2", "1.2.0.0", mode="semver")           # True
 versions.lt("1.2.3-rc10", "1.2.3-rc2", mode="semver")  # True
 versions.parse("1.2.3-rc1+build.7", mode="semver")
 # [1, 2, 3, "-", "rc1", "+", "build", 7]
@@ -195,7 +195,7 @@ Parsing supports the specified normalizations:
 
 ```starlark
 v = versions.parse(" V01.002.000RC_03 ", mode="pep440")
-v.normalized  # "1.2.0rc3"
+v.normalized                                      # "1.2.0rc3"
 versions.eq("1.2-rc1", "1.2rc.1", mode="pep440")  # True
 versions.lt("1.2rc2", "1.2rc10", mode="pep440")   # True
 versions.gt("1!1.0", "999.0", mode="pep440")      # True
@@ -266,12 +266,12 @@ inclusive and end exclusive. Negative indices resolve against the original relea
 with zeros before slicing. Empty selections return `""`.
 
 ```starlark
-versions.prefix("1.2.3.4", 2)                      # "1.2"
-versions.prefix("1.2", 4)                          # "1.2"
-versions.components("1.2.3.4", end=2)              # "1.2"
-versions.components("1.2.3.4", start=1, end=3)     # "2.3"
-versions.components("1.2", end=4)                  # "1.2"
-versions.components("1.2", end=4, pad=True)        # "1.2.0.0"
+versions.prefix("1.2.3.4", 2)                           # "1.2"
+versions.prefix("1.2", 4)                               # "1.2"
+versions.components("1.2.3.4", end=2)                   # "1.2"
+versions.components("1.2.3.4", start=1, end=3)          # "2.3"
+versions.components("1.2", end=4)                       # "1.2"
+versions.components("1.2", end=4, pad=True)             # "1.2.0.0"
 versions.components("1.2.3", start=1, end=4, pad=True)  # "2.3.0"
 versions.components("1.2", start=-1, end=4, pad=True)   # "2.0.0"
 ```
@@ -308,9 +308,9 @@ Bare `*`, interior/partial/multiple wildcards and suffix wildcards fail.
 versions.compatible("1.4.5", "1.4.0")  # True
 versions.compatible("1.5.0", "1.4.0")  # False
 versions.compatible("1.9.0", "1.4")    # True
-versions.matches("1.2.3", "1.2.*")    # True
-versions.matches("1.20.3", "1.2.*")   # False
-versions.matches("1", "1.0.*")        # True
+versions.matches("1.2.3", "1.2.*")     # True
+versions.matches("1.20.3", "1.2.*")    # False
+versions.matches("1", "1.0.*")         # True
 ```
 
 Requirement tokens are strings interpreted by the library, not overloaded Starlark operators:
@@ -340,9 +340,9 @@ either direction. These helpers parse the complete version in the selected mode 
 non-empty numeric release, including in legacy mode.
 
 ```starlark
-versions.component_count("1.2.0.0-rc.1")  # 4
-versions.component("1.2.3.4", -1)        # 4
-versions.component("1.2", 3)             # 0
+versions.component_count("1.2.0.0-rc.1")             # 4
+versions.component("1.2.3.4", -1)                    # 4
+versions.component("1.2", 3)                         # 0
 versions.component_count("1!1.2rc1", mode="pep440")  # 2
 ```
 
@@ -364,10 +364,10 @@ matches any non-empty pre segment; it never matches a final or development-only 
 No helper changes a resolver's separate prerelease-admission policy.
 
 ```starlark
-versions.prerelease("1.2.3-rc.4")                    # "rc.4"
-versions.has_prerelease_prefix("1.2.3-rc1", "rc")     # True
+versions.prerelease("1.2.3-rc.4")                        # "rc.4"
+versions.has_prerelease_prefix("1.2.3-rc1", "rc")        # True
 versions.is_prerelease("1.2.post1.dev2", mode="pep440")  # True
-versions.prerelease("1.2.post1.dev2", mode="pep440")  # ""
+versions.prerelease("1.2.post1.dev2", mode="pep440")     # ""
 ```
 
 `build` returns the metadata after `+`, or `""` when absent. SemVer string inputs retain the exact
@@ -382,8 +382,8 @@ lowercase text, dot-separated identifiers and normalized numeric components. It 
 when absent. Neither helper includes `+` in its result.
 
 ```starlark
-versions.build("1.2.3+001.X-y")           # "001.X-y"
-versions.local("1.2+Ubuntu-01_FOO")       # "ubuntu.1.foo"
+versions.build("1.2.3+001.X-y")      # "001.X-y"
+versions.local("1.2+Ubuntu-01_FOO")  # "ubuntu.1.foo"
 ```
 
 ## Requirement expressions and constants
@@ -393,12 +393,12 @@ the left side. Omit the version to use the candidate. Calls require parentheses.
 refer to caller-supplied constants, described below:
 
 ```starlark
-versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode="semver")  # True
-versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")  # True
-versions.check_one_requirement("23.2.1", "components(start=1,end=3)==2.1", mode="semver")  # True
-versions.check_one_requirement("23.2.1", "major(prefix(2))==23", mode="semver")  # True
-versions.check_one_requirement("23.2.1-rc1", "is_prerelease()==True", mode="semver")  # True
-versions.check_one_requirement("23.2.1-rc1", 'prerelease()=="rc1"', mode="semver")  # True
+versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode="semver")                # True
+versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")                        # True
+versions.check_one_requirement("23.2.1", "components(start=1,end=3)==2.1", mode="semver")         # True
+versions.check_one_requirement("23.2.1", "major(prefix(2))==23", mode="semver")                   # True
+versions.check_one_requirement("23.2.1-rc1", "is_prerelease()==True", mode="semver")              # True
+versions.check_one_requirement("23.2.1-rc1", 'prerelease()=="rc1"', mode="semver")                # True
 versions.check_one_requirement("23.2.1-rc1", 'has_prerelease_prefix("rc")==True', mode="semver")  # True
 ```
 
@@ -505,10 +505,10 @@ an automatically normalized replacement. The original item is returned.
 ```starlark
 semver = versions.with_mode("semver")
 
-semver.sorted(["2.0", "1.10", "1.2"])                 # ["1.2", "1.10", "2.0"]
-semver.sorted(["2.0", "1.10", "1.2"], reverse=True)   # ["2.0", "1.10", "1.2"]
-semver.earliest(["2.0", "1.10", "1.2"])               # "1.2"
-semver.latest(["2.0", "1.10", "1.2"])                 # "2.0"
+semver.sorted(["2.0", "1.10", "1.2"])                # ["1.2", "1.10", "2.0"]
+semver.sorted(["2.0", "1.10", "1.2"], reverse=True)  # ["2.0", "1.10", "1.2"]
+semver.earliest(["2.0", "1.10", "1.2"])              # "1.2"
+semver.latest(["2.0", "1.10", "1.2"])                # "2.0"
 ```
 
 Equal-precedence items retain input order even with `reverse=True`. In SemVer mode, `"1.2"` and
@@ -516,10 +516,10 @@ Equal-precedence items retain input order even with `reverse=True`. In SemVer mo
 
 ```starlark
 same = ["1.2.0+001", "1.2", "1.2+1"]
-semver.sorted(same)                  # All three, in their original order.
-semver.sorted(same, reverse=True)    # Still in their original order.
-semver.earliest(same)                # "1.2.0+001": first tie.
-semver.latest(same)                  # "1.2+1": last tie.
+semver.sorted(same)                # All three, in their original order.
+semver.sorted(same, reverse=True)  # Still in their original order.
+semver.earliest(same)              # "1.2.0+001": first tie.
+semver.latest(same)                # "1.2+1": last tie.
 ```
 
 Use `skip_build=False` to apply the existing SemVer/legacy build-metadata tie breaker. PEP 440

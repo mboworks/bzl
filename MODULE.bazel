@@ -20,3 +20,12 @@ module(
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
+
+bazel_dep(name = "platforms", version = "1.0.0", dev_dependency = True)
+
+fixture_repository = use_repo_rule("//bzl/runfiles/tests:test_repository.bzl", "fixture_repository")
+
+fixture_repository(
+    name = "runfiles_fixture",
+    dev_dependency = True,
+)

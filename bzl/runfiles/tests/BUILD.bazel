@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: Copyright (c) M. Boerger, the MBO Works authors
+# SPDX-License-Identifier: Apache-2.0
+"""Runfiles regression tests."""
+
+load(":runfiles_test.bzl", "generated", "keys_test", "lookup_test", "tool")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files([
+    "source.txt",
+    "runfiles_test.bzl",
+])
+
+generated(name = "generated")
+
+tool(name = "tool")
+
+alias(
+    name = "aliased_source",
+    testonly = True,
+    actual = "@runfiles_fixture//:source.txt",
+    visibility = ["//visibility:public"],
+)
+
+_DATA = [
+    ":source.txt",
+    ":generated",
+    "@runfiles_fixture//:source.txt",
+    "@runfiles_fixture//:generated",
+]
+
+keys_test(
+    name = "keys_test",
+    data = _DATA,
+    tool = ":tool",
+)
+
+keys_test(
+    name = "external_tool_test",
+    data = _DATA,
+    tool = "@runfiles_fixture//:tool",
+)
+
+# Include a test analyzed inside an external repository in `bazel test //...`.
+test_suite(
+    name = "external_context_tests",
+    tests = ["@runfiles_fixture//:external_context_test"],
+)
+
+# Runtime integration uses Bash; the key contract tests above also run on Windows.
+lookup_test(
+    name = "lookup_test",
+    data = _DATA,
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    tool = "@runfiles_fixture//:tool",
+)

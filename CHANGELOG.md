@@ -1,5 +1,7 @@
 # 0.7.1
 
+- Add `runfiles.key(ctx, file)` for constructing runtime lookup keys from Bazel files.
+
 - Add stable version sorting, predicate filtering, earliest/latest selection with data-preserving
   keys and caller-controlled prerelease filtering in every mode.
 

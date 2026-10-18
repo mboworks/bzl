@@ -129,6 +129,21 @@ functions manipulate strings and do not resolve symlinks or inspect the filesyst
 The [paths reference](docs/paths.md) documents all generic and Windows APIs, root/UNC handling,
 empty values, joining rules, collapse behavior and trailing-separator fallbacks.
 
+## Runfiles
+
+[`bzl/runfiles`](docs/runfiles.md) constructs the same lookup key as Bazel's
+`$(rlocationpath label)` expansion from a `File` inside a rule or aspect:
+
+```starlark
+load("@mboworks_bzl//bzl/runfiles:runfiles.bzl", "runfiles")
+
+key = runfiles.key(ctx, ctx.executable.tool)
+```
+
+Source, generated and executable files share the same API. Include the file and
+its dependencies in the launcher's runfiles, then resolve the key with a runtime
+runfiles library. For build actions, use the tool's `FilesToRunProvider` instead.
+
 ## Installation
 
 The library is available as a Bazel module (bzlmod) and supports macOS, Ubuntu
