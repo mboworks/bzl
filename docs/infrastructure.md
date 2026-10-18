@@ -62,3 +62,26 @@ style guide or competing shell formatter is introduced.
 Run `bazel test //...`, `python3 -m unittest discover -s tools -p '*_test.py'`, and
 `pre-commit run --all-files`. CI also builds the configured release documentation to validate
 links and mappings before publication.
+
+## Version consistency
+
+`MODULE.bazel` and the first `CHANGELOG.md` heading identify the development version.
+The README installation example stays at the latest published release during development.
+Historical changelog entries and illustrative version strings retain their original values.
+
+Before a release, run `python3 tools/prepare_release.py X.Y.Z`. It verifies the module and
+changelog versions and updates the README dependency automatically. Review and merge that
+change before tagging; preparation does not commit, tag, or publish anything. The README may
+name the upcoming release during this preparation stage.
+
+Both `tools/trigger_release.sh` (including dry runs) and the archive workflow require
+`prepare_release.py --check` to pass, keeping the tag, archive README, module, and release notes
+consistent. BCR metadata and release assets derive their versions from the release tag.
+
+The `compare-versions` pre-commit hook accepts either the latest numeric release tag or the
+current development version for the README. As in bashtest, local validation uses Git tags
+as release evidence, not a live GitHub Releases query; fetch tags before checking. Without tags,
+it can only validate the example's format and upper bound. CI fetches all tags. The released
+commit may keep its release version; the first subsequent commit must advance the development
+version. Regression tests in `tools/version_test.py` exercise validation and release preparation
+in temporary Git repositories, including the packaged archive. They run in pre-commit and CI.

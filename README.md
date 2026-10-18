@@ -20,19 +20,19 @@ clauses and version-function expressions.
 ```starlark
 load("@mboworks_bzl//bzl/versions:versions.bzl", "versions")
 
-versions.major("23.2.1")                               # 23
-versions.prefix("23.2.1", 2)                           # "23.2"
-versions.components("23.2", end=4, pad=True)           # "23.2.0.0"
-versions.compatible("1.4.8", "1.4.5")                  # True
-versions.matches("1.2.3", "1.2.*")                     # True
-versions.component_count("1.2.0.0-rc1")               # 4
-versions.component("1.2.3.4", -1)                     # 4
-versions.prerelease("1.2.3-rc1")                       # "rc1"
-versions.is_prerelease("1.2.3-rc1")                    # True
-versions.build("1.2.3+001.linux")                     # "001.linux"
-versions.local("1.2+Ubuntu-01")                       # "ubuntu.1"
+versions.major("23.2.1")                                                            # 23
+versions.prefix("23.2.1", 2)                                                        # "23.2"
+versions.components("23.2", end=4, pad=True)                                        # "23.2.0.0"
+versions.compatible("1.4.8", "1.4.5")                                               # True
+versions.matches("1.2.3", "1.2.*")                                                  # True
+versions.component_count("1.2.0.0-rc1")                                             # 4
+versions.component("1.2.3.4", -1)                                                   # 4
+versions.prerelease("1.2.3-rc1")                                                    # "rc1"
+versions.is_prerelease("1.2.3-rc1")                                                 # True
+versions.build("1.2.3+001.linux")                                                   # "001.linux"
+versions.local("1.2+Ubuntu-01")                                                     # "ubuntu.1"
 versions.check_all_requirements("23.2.1", "major()==23,minor()>=2", mode="semver")  # True
-versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")      # True
+versions.check_one_requirement("23.2.1", "prefix(2)==23.2", mode="semver")          # True
 ```
 
 | Mode     | Behavior                                                                                                       |
@@ -61,9 +61,9 @@ Clients can choose a consistent default for the complete API without changing gl
 
 ```starlark
 semver = versions.with_mode("semver")
-semver.eq("1.2", "1.2.0")                             # True
+semver.eq("1.2", "1.2.0")                                         # True
 semver.check_one_requirement("1.2.3-rc1", 'prerelease()=="rc1"')  # True
-semver.eq("1.2", "1.2.0", mode="legacy")               # False: explicit call override
+semver.eq("1.2", "1.2.0", mode="legacy")                          # False: explicit call override
 ```
 
 The returned immutable object preserves every function and option; explicit per-call modes take
@@ -101,8 +101,8 @@ load("@mboworks_bzl//bzl/paths:paths.bzl", "paths")
 
 paths.normalize("a/./b/../c")                 # "a/b/../c"
 paths.normalize("a/./b/../c", collapse=True)  # "a/c"
-paths.join("a/b", "/c")                      # "a/b/c"
-paths.join_respect_absolute("a/b", "/c")     # "/c"
+paths.join("a/b", "/c")                       # "a/b/c"
+paths.join_respect_absolute("a/b", "/c")      # "/c"
 paths.normalize_windows("C:/a//b")            # "C:\\a\\b"
 paths.ensure_trailing_slash("a//b/")          # "a/b/"
 ```
@@ -126,7 +126,7 @@ However, future versions may drop Windows support.
 See [mboworks/bzl releases](https://github.com/mboworks/bzl/releases) to replace the version number.
 
 ```starlark
-bazel_dep(name = "mboworks_bzl", version = "0.5.1")
+bazel_dep(name = "mboworks_bzl", version = "0.7.0")
 ```
 
 ### Dependencies
