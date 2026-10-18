@@ -846,34 +846,6 @@ def _version_latest(items, *, key = None, include_requirements = None, exclude_r
     """Returns the last item in a stable ascending sort of matching items, or default."""
     return _version_pick(items, key, include_requirements, exclude_requirements, default, skip_build, mode, True)
 
-def _allows_prerelease(version, requirements = None, *, mode = "semver"):
-    """SemVer admission: stable, or a positive whole-version clause naming the same prerelease core.
-
-    This is an admission predicate, not a requirements match. Combine with
-    check_all_requirements to enforce the actual range. It never inspects a catalogue.
-    """
-    if mode != "semver":
-        fail("allows_prerelease requires semver mode.")
-    if not _version_is_prerelease(version, mode = mode):
-        return True
-    if not requirements:
-        return False
-    if type(requirements) == "string":
-        requirements = _parse_requirements(requirements, mode = mode)
-    if type(requirements) != "list":
-        fail("Requirements must be a string or list of clauses.")
-    core = _version_components(version, mode = mode)
-    for requirement in requirements:
-        if type(requirement) == "string":
-            requirement = _parse_split_requirement(requirement, mode = mode)
-        if hasattr(requirement, "component") or hasattr(requirement, "expression"):
-            continue
-        if requirement.op in ["!=", "!~=", "!~~="] or "*" in requirement.version:
-            continue
-        if _version_is_prerelease(requirement.version, mode = mode) and _version_eq(_version_components(requirement.version, mode = mode), core, mode = mode):
-            return True
-    return False
-
 def _bind_mode(function, mode):
     return lambda *args, **kwargs: function(*args, **dict({"mode": mode}, **kwargs))
 
@@ -895,7 +867,6 @@ def _with_mode(mode):
     )
 
 _API_FUNCTIONS = {
-    "allows_prerelease": _allows_prerelease,
     "build": _version_build,
     "check_all_requirements": _check_all_requirements,
     "check_one_requirement": _check_one_requirement,

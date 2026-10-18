@@ -617,30 +617,47 @@ results equal stable ascending sorting followed by `[0]` and `[-1]`, respectivel
 tie behavior: earliest takes the first equal-precedence item; latest takes the last. Use `filter`
 and `sorted` separately when you need all candidates or custom post-processing.
 
-### Explicit SemVer prerelease admission
+### Prerelease filtering is caller-owned
 
-`allows_prerelease(version, requirements=None, *, mode="semver")` is an optional policy helper,
-separate from matching. It admits a stable version, or a prerelease when a positive whole-version
-clause explicitly mentions a prerelease of the same zero-padded release core. `requirements` may
-be a string or a list of strings/parsed clauses; parse and evaluate using SemVer mode.
+Use the existing `is_prerelease` predicate to choose whether prereleases participate. This works
+in every mode; Python mode also identifies development releases as prereleases. No collection
+operation inspects requirement clauses to infer a separate admission policy.
 
-Exclusions (`!=`, `!~=`, `!~~=`), wildcard clauses, component projections and function expressions
-do not grant admission. With no requirements, only stable versions are admitted. Other modes fail;
-this helper does not implement Python package-resolution prerelease fallback.
+```starlark
+semver = versions.with_mode("semver")
+values = ["23.1.0", "24.0.0-rc1"]
+semver.latest(values)                                                          # "24.0.0-rc1"
+semver.latest(values, exclude_requirements=semver.is_prerelease)               # "23.1.0"
+semver.latest(values, include_requirements=semver.is_prerelease)               # "24.0.0-rc1"
+
+python = versions.with_mode("pep440")
+python.latest(["1.0", "2.0.dev1"])                                             # "2.0.dev1"
+python.latest(["1.0", "2.0.dev1"], exclude_requirements=python.is_prerelease)  # "1.0"
+```
+
+A caller can expose a boolean option without inspecting requirement syntax:
+
+```starlark
+allow_prereleases = False
+chosen = semver.latest(
+    values,
+    exclude_requirements=None if allow_prereleases else semver.is_prerelease,
+)
+```
+
+To allow prereleases within a particular range, just use that range as the inclusion predicate:
 
 ```starlark
 requirements = semver.parse_requirements(">=23.1.0-rc1,<23.1.0")
 chosen = semver.latest(
     ["23.1.0-rc1", "23.1.0-rc2", "23.1.0", "23.2.0-rc1"],
     include_requirements=lambda v: semver.check_all_requirements(v, requirements),
-    exclude_requirements=lambda v: not semver.allows_prerelease(v, requirements),
 )
 # "23.1.0-rc2"
 ```
 
-Admission alone does **not** assert that a candidate matches the range. Both callbacks above are
-needed. Conversely, an expression such as `is_prerelease()==True` can select prereleases directly
-without this admission helper; do not add a conflicting exclusion predicate.
+An explicit exclusion still wins: adding `exclude_requirements=semver.is_prerelease` to this
+example leaves no matches and returns `None`. Eligibility is exactly what your predicates express.
 
 For toolchain catalogues, first restrict entries to compatible host/platform archives. These
 operations do not query registries, download archives, or determine platform compatibility. Preserve

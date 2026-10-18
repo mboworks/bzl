@@ -101,8 +101,8 @@ semver.latest(releases, exclude_requirements=semver.is_prerelease)  # "23.1.2"
 ```
 
 See [filtering, sorting and picking versions](docs/versions.md#filtering-sorting-and-picking-versions)
-for record/dictionary keys, include/exclude predicates, tie behavior, defaults and explicit
-prerelease admission.
+for record/dictionary keys, include/exclude predicates, tie behavior, defaults and
+caller-controlled prerelease filtering.
 
 ## Paths
 

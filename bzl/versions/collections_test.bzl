@@ -67,26 +67,20 @@ def _selection_test_impl(ctx):
     for expression in ["major()==23", ">=23.1.0-rc1,<23.1.0", "!=23.1.0-rc1", "==23.1.*", "is_prerelease()==True"]:
         requirements = _semver.parse_requirements(expression)
         include = lambda v: _semver.check_all_requirements(v, requirements)
-        exclude = lambda v: not _semver.allows_prerelease(v, requirements)
-        matching = _semver.filter(available, include_requirements = include, exclude_requirements = exclude)
-        ordered = _semver.sorted(matching)
-        asserts.equals(env, ordered[0] if ordered else None, _semver.earliest(available, include_requirements = include, exclude_requirements = exclude))
-        asserts.equals(env, ordered[-1] if ordered else None, _semver.latest(available, include_requirements = include, exclude_requirements = exclude))
-    for version, requirement, expected in [
-        ("23.1.0", None, True),
-        ("23.1.0-rc1", None, False),
-        ("23.1.0-rc2", ">=23.1.0-rc1,<23.1.0", True),
-        ("23.2.0-rc1", ">=23.1.0-rc1", False),
-        ("23.1-rc2", ">=23.1.0-rc1", True),
-        ("23.1.0-rc1", "!=23.1.0-rc2", False),
-        ("23.1.0-rc1", "!~=23.1.0-rc2", False),
-        ("23.1.0-rc1", "!~~=23.1.*", False),
-        ("23.1.0-rc1", "==23.1.*", False),
-        ("23.1.0-rc1", "is_prerelease()==True", False),
-        ("23.1.0-rc1", "prefix(3)==23.1.0-rc1", False),
+        for exclude in [None, _semver.is_prerelease]:
+            matching = _semver.filter(available, include_requirements = include, exclude_requirements = exclude)
+            ordered = _semver.sorted(matching)
+            asserts.equals(env, ordered[0] if ordered else None, _semver.earliest(available, include_requirements = include, exclude_requirements = exclude))
+            asserts.equals(env, ordered[-1] if ordered else None, _semver.latest(available, include_requirements = include, exclude_requirements = exclude))
+    asserts.equals(env, "24.0.0-rc1", _semver.latest(available))
+    asserts.equals(env, "23.1.2", _semver.latest(available, exclude_requirements = _semver.is_prerelease))
+    for api, candidates, expected in [
+        (_semver, ["1.0", "2.0-rc1"], "2.0-rc1"),
+        (versions.with_mode("pep440"), ["1.0", "2.0.dev1"], "2.0.dev1"),
     ]:
-        asserts.equals(env, expected, _semver.allows_prerelease(version, requirement), repr((version, requirement)))
-    asserts.equals(env, True, _semver.allows_prerelease("23.1-rc2", [">=23.1-rc1"]))
+        asserts.equals(env, expected, api.latest(candidates))
+        asserts.equals(env, "1.0", api.latest(candidates, exclude_requirements = api.is_prerelease))
+        asserts.equals(env, expected, api.latest(candidates, include_requirements = api.is_prerelease))
     return unittest.end(env)
 
 _collections_test = unittest.make(_collections_test_impl)
@@ -112,8 +106,6 @@ def _invalid_impl(ctx):
         _semver.sorted([], reverse = 1)
     elif case == "mode":
         versions.sorted([], mode = "unknown")
-    elif case == "admission_mode":
-        versions.with_mode("pep440").allows_prerelease("1.0rc1")
     return []
 
 _invalid = rule(implementation = _invalid_impl, attrs = {"case": attr.string()})
@@ -143,7 +135,6 @@ def collections_test_suite(name = "collections"):
         ("singleton", "leading zeros"),
         ("reverse", "reverse must be a bool"),
         ("mode", "Version mode must be"),
-        ("admission_mode", "requires semver mode"),
     ]:
         fixture = name + "_invalid_" + case
         _invalid(name = fixture, case = case, tags = ["manual"])
